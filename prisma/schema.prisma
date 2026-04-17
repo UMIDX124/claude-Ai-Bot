@@ -381,7 +381,10 @@ model Department {
   companyId   String
   kind        DepartmentKind @default(OTHER)
   name        String
+  code        String?
   description String?
+  color       String?
+  isActive    Boolean        @default(true)
   parentId    String?
   headId      String?
   createdAt   DateTime       @default(now())
@@ -396,9 +399,11 @@ model Department {
   roles     Role[]
 
   @@unique([companyId, name])
+  @@unique([companyId, code])
   @@index([companyId])
   @@index([parentId])
   @@index([headId])
+  @@index([isActive])
   @@index([deletedAt])
   @@map("departments")
 }
@@ -407,8 +412,10 @@ model Role {
   id           String     @id @default(cuid())
   name         String
   description  String?
+  seniority    String?
   departmentId String?
   permissions  String[]
+  isActive     Boolean    @default(true)
   createdAt    DateTime   @default(now())
   updatedAt    DateTime   @updatedAt
   deletedAt    DateTime?
@@ -418,29 +425,41 @@ model Role {
 
   @@unique([name, departmentId])
   @@index([departmentId])
+  @@index([isActive])
   @@index([deletedAt])
   @@map("roles")
 }
 
 model Employee {
-  id            String         @id @default(cuid())
-  userId        String         @unique
-  companyId     String
-  departmentId  String?
-  roleId        String?
-  managerId     String?
-  employeeCode  String?        @unique
-  position      String?
-  status        EmployeeStatus @default(ACTIVE)
-  employmentType String?       // FULL_TIME, PART_TIME, CONTRACT, INTERN
-  hireDate      DateTime?
+  id              String         @id @default(cuid())
+  userId          String         @unique
+  companyId       String
+  departmentId    String?
+  roleId          String?
+  managerId       String?
+  employeeCode    String?        @unique
+  position        String?
+  status          EmployeeStatus @default(ACTIVE)
+  employmentType  String?        // FULL_TIME, PART_TIME, CONTRACT, INTERN
+  workLocation    String?        // REMOTE, HYBRID, ONSITE
+  hireDate        DateTime?
+  probationEndDate DateTime?
   terminationDate DateTime?
-  birthday      DateTime?
+  terminationReason String?
+  birthday        DateTime?
+  salary          Decimal?       @db.Decimal(12, 2)
+  salaryCurrency  String         @default("USD")
+  timezone        String?
+  bio             String?
+  linkedinUrl     String?
+  githubUrl       String?
+  skills          String[]       @default([])
+  address         Json?
   emergencyContact Json?
-  metadata      Json?
-  createdAt     DateTime       @default(now())
-  updatedAt     DateTime       @updatedAt
-  deletedAt     DateTime?
+  metadata        Json?
+  createdAt       DateTime       @default(now())
+  updatedAt       DateTime       @updatedAt
+  deletedAt       DateTime?
 
   user        User         @relation(fields: [userId], references: [id], onDelete: Cascade)
   company     Company      @relation(fields: [companyId], references: [id])
@@ -457,6 +476,8 @@ model Employee {
   @@index([roleId])
   @@index([managerId])
   @@index([status])
+  @@index([employmentType])
+  @@index([hireDate])
   @@index([deletedAt])
   @@map("employees")
 }

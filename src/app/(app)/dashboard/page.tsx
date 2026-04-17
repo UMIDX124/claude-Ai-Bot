@@ -1,3 +1,4 @@
+import Link from "next/link";
 import { db } from "@/lib/db";
 import { requireUser } from "@/lib/auth";
 import {
@@ -6,6 +7,8 @@ import {
   CheckSquare,
   TicketPercent,
   TrendingUp,
+  UserCog,
+  ArrowRight,
 } from "lucide-react";
 
 export const dynamic = "force-dynamic";
@@ -15,24 +18,30 @@ type Card = {
   value: string;
   sub: string;
   icon: React.ComponentType<{ className?: string }>;
+  href?: string;
 };
 
 async function loadKpis() {
-  const [clientCount, taskCount, ticketCount, dealCount] = await Promise.all([
-    db.client.count({ where: { deletedAt: null } }).catch(() => 0),
-    db.task
-      .count({
-        where: { deletedAt: null, status: { in: ["TODO", "IN_PROGRESS", "REVIEW"] } },
-      })
-      .catch(() => 0),
-    db.ticket
-      .count({ where: { deletedAt: null, status: { notIn: ["CLOSED", "RESOLVED"] } } })
-      .catch(() => 0),
-    db.deal
-      .count({ where: { deletedAt: null, status: "OPEN" } })
-      .catch(() => 0),
-  ]);
-  return { clientCount, taskCount, ticketCount, dealCount };
+  const [clientCount, taskCount, ticketCount, dealCount, employeeCount, onLeaveCount] =
+    await Promise.all([
+      db.client.count({ where: { deletedAt: null } }).catch(() => 0),
+      db.task
+        .count({
+          where: { deletedAt: null, status: { in: ["TODO", "IN_PROGRESS", "REVIEW"] } },
+        })
+        .catch(() => 0),
+      db.ticket
+        .count({ where: { deletedAt: null, status: { notIn: ["CLOSED", "RESOLVED"] } } })
+        .catch(() => 0),
+      db.deal
+        .count({ where: { deletedAt: null, status: "OPEN" } })
+        .catch(() => 0),
+      db.employee.count({ where: { deletedAt: null } }).catch(() => 0),
+      db.employee
+        .count({ where: { deletedAt: null, status: "ON_LEAVE" } })
+        .catch(() => 0),
+    ]);
+  return { clientCount, taskCount, ticketCount, dealCount, employeeCount, onLeaveCount };
 }
 
 export default async function DashboardPage() {
@@ -40,6 +49,13 @@ export default async function DashboardPage() {
   const kpis = await loadKpis();
 
   const cards: Card[] = [
+    {
+      label: "Employees",
+      value: String(kpis.employeeCount),
+      sub: `${kpis.onLeaveCount} on leave · DPL · VCS · BSL`,
+      icon: UserCog,
+      href: "/dashboard/employees",
+    },
     {
       label: "Active clients",
       value: String(kpis.clientCount),
@@ -83,24 +99,38 @@ export default async function DashboardPage() {
         </div>
       </header>
 
-      <section className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-4">
-        {cards.map(({ label, value, sub, icon: Icon }) => (
-          <div
-            key={label}
-            className="rounded-xl bg-[#111111] border border-[#1F1F1F] p-5 hover:border-[#F59E0B]/40 transition-colors"
-          >
-            <div className="flex items-center justify-between">
-              <span className="text-xs uppercase tracking-wider text-[#71717A]">
-                {label}
-              </span>
-              <span className="w-8 h-8 rounded-md bg-[#F59E0B]/10 grid place-items-center text-[#F59E0B]">
-                <Icon className="w-4 h-4" />
-              </span>
+      <section className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-5 gap-4">
+        {cards.map(({ label, value, sub, icon: Icon, href }) => {
+          const body = (
+            <>
+              <div className="flex items-center justify-between">
+                <span className="text-xs uppercase tracking-wider text-[#71717A]">
+                  {label}
+                </span>
+                <span className="w-8 h-8 rounded-md bg-[#F59E0B]/10 grid place-items-center text-[#F59E0B]">
+                  <Icon className="w-4 h-4" />
+                </span>
+              </div>
+              <p className="mt-4 text-3xl font-semibold text-[#FAFAFA]">{value}</p>
+              <p className="mt-1 text-[11px] text-[#71717A]">{sub}</p>
+              {href ? (
+                <span className="mt-3 inline-flex items-center gap-1 text-[11px] text-[#F59E0B] group-hover:translate-x-1 transition-transform">
+                  Open <ArrowRight className="w-3 h-3" />
+                </span>
+              ) : null}
+            </>
+          );
+          const base = "rounded-xl bg-[#111111] border border-[#1F1F1F] p-5 hover:border-[#F59E0B]/40 transition-colors";
+          return href ? (
+            <Link key={label} href={href} className={`${base} group block`}>
+              {body}
+            </Link>
+          ) : (
+            <div key={label} className={base}>
+              {body}
             </div>
-            <p className="mt-4 text-3xl font-semibold text-[#FAFAFA]">{value}</p>
-            <p className="mt-1 text-[11px] text-[#71717A]">{sub}</p>
-          </div>
-        ))}
+          );
+        })}
       </section>
 
       <section className="rounded-xl border border-[#1F1F1F] bg-[#111111] p-6">

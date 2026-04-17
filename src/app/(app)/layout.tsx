@@ -9,20 +9,19 @@ import {
   UserCog,
   CalendarClock,
   ReceiptText,
+  Trash2,
 } from "lucide-react";
 import { ensureUserRecord } from "@/lib/auth";
 import { redirect } from "next/navigation";
+import { db } from "@/lib/db";
 
-const NAV = [
-  { href: "/dashboard", label: "Dashboard", icon: LayoutDashboard },
-  { href: "/tasks", label: "Tasks", icon: CheckSquare },
-  { href: "/clients", label: "Clients", icon: Briefcase },
-  { href: "/deals", label: "Deals", icon: Users },
-  { href: "/tickets", label: "Tickets", icon: TicketPercent },
-  { href: "/employees", label: "Employees", icon: UserCog },
-  { href: "/leaves", label: "Leaves", icon: CalendarClock },
-  { href: "/invoices", label: "Invoices", icon: ReceiptText },
-];
+type NavItem = {
+  href: string;
+  label: string;
+  icon: React.ComponentType<{ className?: string }>;
+  count?: number;
+  subItems?: { href: string; label: string; icon?: React.ComponentType<{ className?: string }> }[];
+};
 
 export default async function AppShellLayout({
   children,
@@ -31,6 +30,29 @@ export default async function AppShellLayout({
 }) {
   const user = await ensureUserRecord();
   if (!user) redirect("/sign-in");
+
+  const employeeCount = await db.employee
+    .count({ where: { deletedAt: null } })
+    .catch(() => 0);
+
+  const NAV: NavItem[] = [
+    { href: "/dashboard", label: "Dashboard", icon: LayoutDashboard },
+    { href: "/dashboard/tasks", label: "Tasks", icon: CheckSquare },
+    { href: "/dashboard/clients", label: "Clients", icon: Briefcase },
+    { href: "/dashboard/deals", label: "Deals", icon: Users },
+    { href: "/dashboard/tickets", label: "Tickets", icon: TicketPercent },
+    {
+      href: "/dashboard/employees",
+      label: "Employees",
+      icon: UserCog,
+      count: employeeCount,
+      subItems: [
+        { href: "/dashboard/employees/trash", label: "Terminated", icon: Trash2 },
+      ],
+    },
+    { href: "/dashboard/leaves", label: "Leaves", icon: CalendarClock },
+    { href: "/dashboard/invoices", label: "Invoices", icon: ReceiptText },
+  ];
 
   return (
     <div className="min-h-screen flex bg-[#0D0D0D] text-[#FAFAFA]">
@@ -42,15 +64,8 @@ export default async function AppShellLayout({
           <span className="font-semibold tracking-tight">Alpha</span>
         </div>
         <nav className="flex-1 overflow-y-auto px-3 py-4 space-y-1">
-          {NAV.map(({ href, label, icon: Icon }) => (
-            <Link
-              key={href}
-              href={href}
-              className="flex items-center gap-3 px-3 py-2 rounded-lg text-sm text-[#A1A1AA] hover:text-[#FAFAFA] hover:bg-[#1F1F1F] transition-colors"
-            >
-              <Icon className="w-4 h-4" />
-              <span>{label}</span>
-            </Link>
+          {NAV.map((item) => (
+            <NavLink key={item.href} item={item} />
           ))}
         </nav>
         <div className="px-3 py-4 border-t border-[#1F1F1F] text-xs text-[#71717A]">
@@ -75,6 +90,45 @@ export default async function AppShellLayout({
         </header>
         <main className="flex-1 p-6 md:p-8 overflow-y-auto">{children}</main>
       </div>
+    </div>
+  );
+}
+
+function NavLink({ item }: { item: NavItem }) {
+  const Icon = item.icon;
+  return (
+    <div>
+      <Link
+        href={item.href}
+        className="flex items-center justify-between gap-3 px-3 py-2 rounded-lg text-sm text-[#A1A1AA] hover:text-[#FAFAFA] hover:bg-[#1F1F1F] transition-colors"
+      >
+        <span className="flex items-center gap-3">
+          <Icon className="w-4 h-4" />
+          <span>{item.label}</span>
+        </span>
+        {typeof item.count === "number" ? (
+          <span className="inline-flex items-center justify-center rounded-full bg-[#F59E0B]/15 text-[#F59E0B] text-[10px] font-medium h-5 min-w-5 px-1.5">
+            {item.count}
+          </span>
+        ) : null}
+      </Link>
+      {item.subItems?.length ? (
+        <div className="pl-8 space-y-1 mt-1">
+          {item.subItems.map((sub) => {
+            const SubIcon = sub.icon;
+            return (
+              <Link
+                key={sub.href}
+                href={sub.href}
+                className="flex items-center gap-2 px-3 py-1 rounded-md text-xs text-[#71717A] hover:text-[#A1A1AA] hover:bg-[#161616]"
+              >
+                {SubIcon ? <SubIcon className="w-3 h-3" /> : null}
+                {sub.label}
+              </Link>
+            );
+          })}
+        </div>
+      ) : null}
     </div>
   );
 }
