@@ -24,7 +24,21 @@ export type Permission =
   | "projects.read"
   | "projects.create"
   | "projects.update"
-  | "projects.delete";
+  | "projects.delete"
+  | "clients.read"
+  | "clients.create"
+  | "clients.update"
+  | "clients.update.any"
+  | "clients.delete"
+  | "clients.bulk"
+  | "clients.export"
+  | "deals.read"
+  | "deals.create"
+  | "deals.update"
+  | "deals.update.any"
+  | "deals.delete"
+  | "deals.bulk"
+  | "pipelines.manage";
 
 const ALL_EMPLOYEE: Permission[] = [
   "employees.read",
@@ -59,9 +73,42 @@ const ALL_PROJECTS: Permission[] = [
   "projects.delete",
 ];
 
+const ALL_CLIENTS: Permission[] = [
+  "clients.read",
+  "clients.create",
+  "clients.update",
+  "clients.update.any",
+  "clients.delete",
+  "clients.bulk",
+  "clients.export",
+];
+
+const ALL_DEALS: Permission[] = [
+  "deals.read",
+  "deals.create",
+  "deals.update",
+  "deals.update.any",
+  "deals.delete",
+  "deals.bulk",
+];
+
 const ROLE_PERMISSIONS: Record<UserRole, Permission[]> = {
-  OWNER: [...ALL_EMPLOYEE, ...ALL_TASKS, ...ALL_PROJECTS],
-  ADMIN: [...ALL_EMPLOYEE, ...ALL_TASKS, ...ALL_PROJECTS],
+  OWNER: [
+    ...ALL_EMPLOYEE,
+    ...ALL_TASKS,
+    ...ALL_PROJECTS,
+    ...ALL_CLIENTS,
+    ...ALL_DEALS,
+    "pipelines.manage",
+  ],
+  ADMIN: [
+    ...ALL_EMPLOYEE,
+    ...ALL_TASKS,
+    ...ALL_PROJECTS,
+    ...ALL_CLIENTS,
+    ...ALL_DEALS,
+    "pipelines.manage",
+  ],
   MANAGER: [
     "employees.read",
     "employees.create",
@@ -79,6 +126,19 @@ const ROLE_PERMISSIONS: Record<UserRole, Permission[]> = {
     "projects.read",
     "projects.create",
     "projects.update",
+    "clients.read",
+    "clients.create",
+    "clients.update",
+    "clients.update.any",
+    "clients.delete",
+    "clients.bulk",
+    "clients.export",
+    "deals.read",
+    "deals.create",
+    "deals.update",
+    "deals.update.any",
+    "deals.delete",
+    "deals.bulk",
   ],
   EMPLOYEE: [
     "employees.read",
@@ -87,8 +147,21 @@ const ROLE_PERMISSIONS: Record<UserRole, Permission[]> = {
     "tasks.update",
     "tasks.comment",
     "projects.read",
+    "clients.read",
+    "clients.create",
+    "clients.update",
+    "clients.export",
+    "deals.read",
+    "deals.create",
+    "deals.update",
   ],
-  VIEWER: ["employees.read", "tasks.read", "projects.read"],
+  VIEWER: [
+    "employees.read",
+    "tasks.read",
+    "projects.read",
+    "clients.read",
+    "deals.read",
+  ],
 };
 
 export function can(user: Pick<User, "role">, permission: Permission): boolean {
