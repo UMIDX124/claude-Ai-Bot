@@ -12,8 +12,11 @@ import {
   AlertCircle,
   Calendar,
   Trophy,
+  HeartCrack,
+  DollarSign,
+  Target,
 } from "lucide-react";
-import { endOfWeek, startOfWeek } from "date-fns";
+import { endOfMonth, endOfWeek, startOfMonth, startOfWeek } from "date-fns";
 
 export const dynamic = "force-dynamic";
 
@@ -33,6 +36,8 @@ async function loadKpis(viewerUserId: string) {
   const now = new Date();
   const weekStart = startOfWeek(now, { weekStartsOn: 1 });
   const weekEnd = endOfWeek(now, { weekStartsOn: 1 });
+  const monthStart = startOfMonth(now);
+  const monthEnd = endOfMonth(now);
 
   const [
     clientCount,
@@ -45,6 +50,10 @@ async function loadKpis(viewerUserId: string) {
     overdueTasks,
     dueThisWeekTasks,
     completedThisWeekTasks,
+    openDeals,
+    atRiskClients,
+    newClientsThisWeek,
+    wonThisMonth,
   ] = await Promise.all([
     db.client.count({ where: { deletedAt: null } }).catch(() => 0),
     db.task
@@ -109,7 +118,55 @@ async function loadKpis(viewerUserId: string) {
           },
         })
       : Promise.resolve(0),
+    db.deal.findMany({
+      where: { deletedAt: null, status: "OPEN" },
+      select: { value: true, probability: true, currency: true },
+    }),
+    db.client.count({
+      where: {
+        deletedAt: null,
+        health: { in: ["AT_RISK", "CHURNING"] },
+        status: { not: "CHURNED" },
+      },
+    }),
+    db.client.count({
+      where: { deletedAt: null, createdAt: { gte: weekStart, lte: weekEnd } },
+    }),
+    db.deal.aggregate({
+      where: {
+        deletedAt: null,
+        status: "WON",
+        closedAt: { gte: monthStart, lte: monthEnd },
+      },
+      _sum: { value: true },
+      _count: { _all: true },
+    }),
   ]);
+
+  // Compute USD-normalized open pipeline value. Real FX would query Upstash-
+  // cached rates; seed fallback uses baseline conversions.
+  const USD_RATES: Record<string, number> = {
+    USD: 1,
+    EUR: 1.08,
+    GBP: 1.26,
+    PKR: 0.0036,
+    AED: 0.27,
+    CAD: 0.73,
+    AUD: 0.66,
+  };
+  let openPipelineUsd = 0;
+  let expectedPipelineUsd = 0;
+  for (const d of openDeals) {
+    const rate = USD_RATES[d.currency] ?? 1;
+    const value = Number.parseFloat(d.value.toString()) * rate;
+    openPipelineUsd += value;
+    expectedPipelineUsd += (value * d.probability) / 100;
+  }
+
+  const wonValueUsd = wonThisMonth._sum.value
+    ? Number.parseFloat(wonThisMonth._sum.value.toString())
+    : 0;
+
   return {
     clientCount,
     taskCount,
@@ -121,6 +178,12 @@ async function loadKpis(viewerUserId: string) {
     overdueTasks,
     dueThisWeekTasks,
     completedThisWeekTasks,
+    openPipelineUsd,
+    expectedPipelineUsd,
+    atRiskClients,
+    newClientsThisWeek,
+    wonThisMonthCount: wonThisMonth._count._all,
+    wonThisMonthValue: wonValueUsd,
   };
 }
 
@@ -158,6 +221,36 @@ export default async function DashboardPage() {
     },
   ];
 
+  const revenueCards: Card[] = [
+    {
+      label: "Open pipeline",
+      value: `$${formatCompact(kpis.openPipelineUsd)}`,
+      sub: `${kpis.dealCount} open deals · USD-normalized`,
+      icon: DollarSign,
+      href: "/dashboard/deals",
+    },
+    {
+      label: "Expected revenue",
+      value: `$${formatCompact(kpis.expectedPipelineUsd)}`,
+      sub: "value × stage probability",
+      icon: Target,
+      href: "/dashboard/deals",
+    },
+    {
+      label: "Won this month",
+      value: `$${formatCompact(kpis.wonThisMonthValue)}`,
+      sub: `${kpis.wonThisMonthCount} deals closed won`,
+      icon: Trophy,
+    },
+    {
+      label: "At-risk clients",
+      value: String(kpis.atRiskClients),
+      sub: `${kpis.newClientsThisWeek} new this week`,
+      icon: HeartCrack,
+      href: "/dashboard/clients?health=AT_RISK&health=CHURNING",
+    },
+  ];
+
   const cards: Card[] = [
     {
       label: "Employees",
@@ -169,8 +262,9 @@ export default async function DashboardPage() {
     {
       label: "Active clients",
       value: String(kpis.clientCount),
-      sub: "status != CHURNED",
+      sub: "all companies",
       icon: Briefcase,
+      href: "/dashboard/clients",
     },
     {
       label: "Open tasks",
@@ -190,6 +284,7 @@ export default async function DashboardPage() {
       value: String(kpis.dealCount),
       sub: "pipeline status OPEN",
       icon: TrendingUp,
+      href: "/dashboard/deals",
     },
   ];
 
@@ -216,6 +311,46 @@ export default async function DashboardPage() {
         </h3>
         <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-4">
           {myCards.map(({ label, value, sub, icon: Icon, href }) => {
+            const body = (
+              <>
+                <div className="flex items-center justify-between">
+                  <span className="text-xs uppercase tracking-wider text-[#71717A]">
+                    {label}
+                  </span>
+                  <span className="w-8 h-8 rounded-md bg-[#F59E0B]/10 grid place-items-center text-[#F59E0B]">
+                    <Icon className="w-4 h-4" />
+                  </span>
+                </div>
+                <p className="mt-4 text-3xl font-semibold text-[#FAFAFA]">{value}</p>
+                <p className="mt-1 text-[11px] text-[#71717A]">{sub}</p>
+                {href ? (
+                  <span className="mt-3 inline-flex items-center gap-1 text-[11px] text-[#F59E0B] group-hover:translate-x-1 transition-transform">
+                    Open <ArrowRight className="w-3 h-3" />
+                  </span>
+                ) : null}
+              </>
+            );
+            const base =
+              "rounded-xl bg-[#111111] border border-[#1F1F1F] p-5 hover:border-[#F59E0B]/40 transition-colors";
+            return href ? (
+              <Link key={label} href={href} className={`${base} group block`}>
+                {body}
+              </Link>
+            ) : (
+              <div key={label} className={base}>
+                {body}
+              </div>
+            );
+          })}
+        </div>
+      </section>
+
+      <section className="space-y-3">
+        <h3 className="text-xs font-medium uppercase tracking-wider text-[#71717A]">
+          Revenue · Pipeline · Risk
+        </h3>
+        <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-4">
+          {revenueCards.map(({ label, value, sub, icon: Icon, href }) => {
             const body = (
               <>
                 <div className="flex items-center justify-between">
@@ -285,13 +420,19 @@ export default async function DashboardPage() {
       </section>
 
       <section className="rounded-xl border border-[#1F1F1F] bg-[#111111] p-6">
-        <h3 className="text-sm font-medium text-[#FAFAFA]">What's next</h3>
+        <h3 className="text-sm font-medium text-[#FAFAFA]">What&apos;s live</h3>
         <p className="mt-2 text-sm text-[#A1A1AA]">
-          Modules coming online as each slice lands: task board, pipeline kanban, ticket
-          inbox, client 360, invoice console, cold-email campaigns. Dashboard tiles above
-          are wired to Prisma and will move as soon as the Neon baseline is resolved.
+          Slices 0–3 shipped: employees, task board with kanban, client 360, deal pipeline
+          with stage-move + probability rollups. Tickets, AI/Chat, and Billing ship next.
         </p>
       </section>
     </div>
   );
+}
+
+function formatCompact(n: number): string {
+  if (!Number.isFinite(n)) return "0";
+  if (n >= 1_000_000) return `${(n / 1_000_000).toFixed(2)}M`;
+  if (n >= 10_000) return `${(n / 1_000).toFixed(1)}k`;
+  return n.toLocaleString(undefined, { maximumFractionDigits: 0 });
 }
