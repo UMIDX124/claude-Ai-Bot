@@ -345,6 +345,7 @@ model User {
   uploadedFiles    Attachment[]
   reportedTickets  Ticket[]            @relation("TicketReporter")
   assignedTickets  Ticket[]            @relation("TicketAssignee")
+  watchedTickets   TicketWatcher[]
   ticketMessages   TicketMessage[]
   createdDeals     Deal[]              @relation("DealCreator")
   ownedDeals       Deal[]              @relation("DealOwner")
@@ -496,6 +497,7 @@ model Employee {
   assignedTasks Task[]     @relation("EmployeeTaskAssignee")
   ownedClients  Client[]   @relation("ClientOwner")
   ownedDealsEmp Deal[]     @relation("DealOwnerEmployee")
+  assignedTicketsEmp Ticket[] @relation("EmployeeTicketAssignee")
 
   @@index([companyId])
   @@index([departmentId])
@@ -943,17 +945,18 @@ model Attachment {
 // ============================================================================
 
 model SLA {
-  id                  String    @id @default(cuid())
-  name                String    @unique
-  description         String?
-  responseMinutes     Int
-  resolutionMinutes   Int
-  businessHoursOnly   Boolean   @default(true)
-  appliesToPriority   TicketPriority?
-  isActive            Boolean   @default(true)
-  createdAt           DateTime  @default(now())
-  updatedAt           DateTime  @updatedAt
-  deletedAt           DateTime?
+  id                    String    @id @default(cuid())
+  name                  String    @unique
+  description           String?
+  responseMinutes       Int
+  resolutionMinutes     Int
+  businessHoursOnly     Boolean   @default(true)
+  businessHoursSchedule Json?
+  appliesToPriority     TicketPriority?
+  isActive              Boolean   @default(true)
+  createdAt             DateTime  @default(now())
+  updatedAt             DateTime  @updatedAt
+  deletedAt             DateTime?
 
   tickets Ticket[]
 
@@ -963,48 +966,94 @@ model SLA {
 }
 
 model Ticket {
-  id              String         @id @default(cuid())
-  number          Int            @unique @default(autoincrement())
-  companyId       String
-  clientId        String?
-  reporterId      String
-  assignedToId    String?
-  slaId           String?
-  subject         String
-  description     String
-  status          TicketStatus   @default(OPEN)
-  priority        TicketPriority @default(NORMAL)
-  channel         TicketChannel  @default(WEB)
-  category        String?
-  tags            String[]
-  acknowledgedAt  DateTime?
-  firstResponseAt DateTime?
-  resolvedAt      DateTime?
-  closedAt        DateTime?
-  responseDueAt   DateTime?
-  resolutionDueAt DateTime?
-  metadata        Json?
-  createdAt       DateTime       @default(now())
-  updatedAt       DateTime       @updatedAt
-  deletedAt       DateTime?
+  id                  String         @id @default(cuid())
+  number              Int            @unique @default(autoincrement())
+  companyId           String
+  clientId            String?
+  reporterId          String
+  assignedToId        String?
+  assigneeEmployeeId  String?
+  slaId               String?
+  subject             String
+  description         String         @db.Text
+  status              TicketStatus   @default(OPEN)
+  priority            TicketPriority @default(NORMAL)
+  channel             TicketChannel  @default(WEB)
+  category            String?
+  tags                String[]
+  escalationLevel     Int            @default(0)
+  satisfactionScore   Int?
+  satisfactionComment String?
+  dueAt               DateTime?
+  acknowledgedAt      DateTime?
+  firstResponseAt     DateTime?
+  resolvedAt          DateTime?
+  closedAt            DateTime?
+  responseDueAt       DateTime?
+  resolutionDueAt     DateTime?
+  responseBreachedAt  DateTime?
+  resolutionBreachedAt DateTime?
+  metadata            Json?
+  createdAt           DateTime       @default(now())
+  updatedAt           DateTime       @updatedAt
+  deletedAt           DateTime?
 
-  company     Company         @relation(fields: [companyId], references: [id])
-  client      Client?         @relation(fields: [clientId], references: [id])
-  reporter    User            @relation("TicketReporter", fields: [reporterId], references: [id])
-  assignedTo  User?           @relation("TicketAssignee", fields: [assignedToId], references: [id])
-  sla         SLA?            @relation(fields: [slaId], references: [id])
-  messages    TicketMessage[]
-  attachments Attachment[]
+  company          Company           @relation(fields: [companyId], references: [id])
+  client           Client?           @relation(fields: [clientId], references: [id])
+  reporter         User              @relation("TicketReporter", fields: [reporterId], references: [id])
+  assignedTo       User?             @relation("TicketAssignee", fields: [assignedToId], references: [id])
+  assigneeEmployee Employee?         @relation("EmployeeTicketAssignee", fields: [assigneeEmployeeId], references: [id])
+  sla              SLA?              @relation(fields: [slaId], references: [id])
+  messages         TicketMessage[]
+  attachments      Attachment[]
+  watchers         TicketWatcher[]
+  activities       TicketActivity[]
 
   @@index([companyId])
   @@index([clientId])
   @@index([reporterId])
   @@index([assignedToId])
+  @@index([assigneeEmployeeId])
   @@index([slaId])
   @@index([status])
   @@index([priority])
+  @@index([responseDueAt])
+  @@index([resolutionDueAt])
   @@index([deletedAt])
   @@map("tickets")
+}
+
+model TicketWatcher {
+  id        String   @id @default(cuid())
+  ticketId  String
+  userId    String
+  createdAt DateTime @default(now())
+
+  ticket Ticket @relation(fields: [ticketId], references: [id], onDelete: Cascade)
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([ticketId, userId])
+  @@index([ticketId])
+  @@index([userId])
+  @@map("ticket_watchers")
+}
+
+model TicketActivity {
+  id        String   @id @default(cuid())
+  ticketId  String
+  actorId   String?
+  kind      String
+  fromValue String?
+  toValue   String?
+  metadata  Json?
+  createdAt DateTime @default(now())
+
+  ticket Ticket @relation(fields: [ticketId], references: [id], onDelete: Cascade)
+
+  @@index([ticketId])
+  @@index([actorId])
+  @@index([createdAt])
+  @@map("ticket_activities")
 }
 
 model TicketMessage {
