@@ -1,276 +1,1294 @@
-// FU Corp Elite CRM - Enterprise Database Schema
+// =============================================================================
+// Alpha Command Center — Prisma schema (covers Slices 0–6)
+// Naming: snake_case for table names via @@map; camelCase for fields.
+// Soft delete: every business model has nullable deletedAt.
+// Audit columns: createdById / updatedById link to User where it is meaningful.
+// =============================================================================
+
 generator client {
-  provider = "prisma-client-js"
+  provider      = "prisma-client-js"
+  binaryTargets = ["native", "rhel-openssl-3.0.x"]
 }
 
 datasource db {
-  provider = "postgresql"
-  url      = env("DATABASE_URL")
+  provider  = "postgresql"
+  url       = env("DATABASE_URL")
+  directUrl = env("DIRECT_URL")
 }
 
-// Enums
-enum Role {
-  SUPER_ADMIN
-  PROJECT_MANAGER
-  DEPT_HEAD
-  TEAM_LEAD
-  EMPLOYEE
-}
+// ============================================================================
+// ENUMS
+// ============================================================================
 
-enum Department {
-  WEB_DEVELOPMENT
-  SEO
-  VIDEO_EDITING
-  DESIGN
-  SOCIAL_MEDIA
+enum UserRole {
+  OWNER
   ADMIN
+  MANAGER
+  EMPLOYEE
+  VIEWER
+}
+
+enum EmployeeStatus {
+  ACTIVE
+  ON_LEAVE
+  TERMINATED
+  SUSPENDED
+}
+
+enum CompanyType {
+  DPL
+  VCS
+  BSL
+}
+
+enum DepartmentKind {
+  EXECUTIVE
   SALES
+  MARKETING
+  ENGINEERING
+  DESIGN
   SUPPORT
+  HR
+  FINANCE
+  OPERATIONS
+  OTHER
 }
 
 enum TaskStatus {
+  BACKLOG
   TODO
   IN_PROGRESS
   REVIEW
-  COMPLETED
-  BLOCKED
+  DONE
+  CANCELLED
 }
 
-enum Priority {
+enum TaskPriority {
   LOW
   MEDIUM
   HIGH
   URGENT
 }
 
+enum TaskActivityKind {
+  CREATED
+  STATUS_CHANGED
+  ASSIGNED
+  UNASSIGNED
+  COMMENTED
+  PRIORITY_CHANGED
+  DUE_DATE_CHANGED
+  COMPLETED
+  REOPENED
+  ATTACHMENT_ADDED
+  SUBTASK_ADDED
+}
+
+enum DealStage {
+  PROSPECT
+  QUALIFIED
+  PROPOSAL
+  NEGOTIATION
+  CLOSED_WON
+  CLOSED_LOST
+}
+
+enum DealStatus {
+  OPEN
+  WON
+  LOST
+}
+
 enum ClientStatus {
   ACTIVE
+  CHURNED
+  PAUSED
+  PROSPECT
+}
+
+enum ClientHealth {
+  HEALTHY
+  AT_RISK
+  CHURNING
+  UNKNOWN
+}
+
+enum ContactKind {
+  PRIMARY
+  BILLING
+  TECHNICAL
+  EXECUTIVE
+  OTHER
+}
+
+enum TicketStatus {
+  OPEN
+  ACKNOWLEDGED
+  IN_PROGRESS
+  WAITING_CUSTOMER
+  RESOLVED
+  CLOSED
+}
+
+enum TicketPriority {
+  LOW
+  NORMAL
+  HIGH
+  URGENT
+  CRITICAL
+}
+
+enum TicketChannel {
+  EMAIL
+  WEB
+  CHAT
+  PHONE
+  INTERNAL
+}
+
+enum InvoiceStatus {
+  DRAFT
+  SENT
+  VIEWED
+  PAID
+  PARTIALLY_PAID
+  OVERDUE
+  CANCELLED
+  REFUNDED
+}
+
+enum PaymentMethod {
+  STRIPE
+  BANK_TRANSFER
+  WIRE
+  PAYPAL
+  CASH
+  CHECK
+  OTHER
+}
+
+enum PaymentStatus {
+  PENDING
+  COMPLETED
+  FAILED
+  REFUNDED
+}
+
+enum LeaveStatus {
+  PENDING
+  APPROVED
+  REJECTED
+  CANCELLED
+}
+
+enum LeaveTypeKind {
+  ANNUAL
+  SICK
+  CASUAL
+  UNPAID
+  MATERNITY
+  PATERNITY
+  BEREAVEMENT
+  OTHER
+}
+
+enum NotificationKind {
+  TASK_ASSIGNED
+  TASK_DUE
+  TASK_COMPLETED
+  TASK_COMMENT
+  TICKET_NEW
+  TICKET_REPLY
+  TICKET_SLA_RISK
+  TICKET_RESOLVED
+  DEAL_STAGE_CHANGED
+  DEAL_WON
+  DEAL_LOST
+  INVOICE_SENT
+  INVOICE_PAID
+  INVOICE_OVERDUE
+  LEAVE_REQUEST
+  LEAVE_DECISION
+  MENTION
+  SYSTEM
+}
+
+enum NotificationChannel {
+  IN_APP
+  EMAIL
+  SMS
+  PUSH
+}
+
+enum LeadStatus {
+  NEW
+  CONTACTED
+  QUALIFIED
+  CONVERTED
+  DISQUALIFIED
+  NURTURE
+}
+
+enum LeadStage {
+  COLD
+  WARM
+  HOT
+  CONVERTED
+  LOST
+}
+
+enum EmailEventKind {
+  QUEUED
+  SENT
+  DELIVERED
+  OPENED
+  CLICKED
+  REPLIED
+  BOUNCED
+  COMPLAINED
+  UNSUBSCRIBED
+  FAILED
+}
+
+enum CampaignStatus {
+  DRAFT
+  SCHEDULED
+  RUNNING
   PAUSED
   COMPLETED
   CANCELLED
 }
 
-// Brand/Company
-model Brand {
-  id        String   @id @default(cuid())
-  name      String
-  code      String   @unique // VCS, BSL, DPL
-  color     String   // Brand color
-  website   String?
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
-
-  clients   Client[]
-  employees Employee[]
-  packages  Package[]
-
-  @@map("brands")
+enum ChatRoomKind {
+  DIRECT
+  GROUP
+  CHANNEL
+  TICKET
+  CLIENT
+  AI
 }
 
-// Users/Employees with RBAC
+enum MessageKind {
+  TEXT
+  SYSTEM
+  ATTACHMENT
+  AI_RESPONSE
+}
+
+enum AIRole {
+  USER
+  ASSISTANT
+  SYSTEM
+  TOOL
+}
+
+enum AuditAction {
+  CREATE
+  UPDATE
+  DELETE
+  RESTORE
+  LOGIN
+  LOGOUT
+  EXPORT
+  IMPORT
+  PERMISSION_CHANGE
+  ASSIGN
+  STATUS_CHANGE
+  ACCESS
+}
+
+// ============================================================================
+// IDENTITY & ORGANIZATION
+// ============================================================================
+
 model User {
-  id             String    @id @default(cuid())
-  email          String    @unique
-  passwordHash   String
-  firstName      String
-  lastName       String
-  avatar         String?
-  phone          String?
-  role           Role      @default(EMPLOYEE)
-  department     Department?
-  designation     String?   // e.g., "Senior Web Developer", "SEO Specialist"
-  brandId        String?
-  managerId      String?   // Reports to
-  isActive       Boolean   @default(true)
-  lastLogin      DateTime?
-  createdAt      DateTime  @default(now())
-  updatedAt      DateTime  @updatedAt
+  id          String    @id @default(cuid())
+  clerkId     String    @unique
+  email       String    @unique
+  firstName   String?
+  lastName    String?
+  fullName    String?
+  avatarUrl   String?
+  phone       String?
+  role        UserRole  @default(EMPLOYEE)
+  isActive    Boolean   @default(true)
+  lastLoginAt DateTime?
+  metadata    Json?
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+  deletedAt   DateTime?
 
-  brand          Brand?     @relation(fields: [brandId], references: [id])
-  manager        User?      @relation("ManagerRelation", fields: [managerId], references: [id])
-  subordinates   User[]     @relation("ManagerRelation")
+  employee Employee?
 
-  assignedTasks  Task[]     @relation("AssignedTasks")
-  createdTasks   Task[]     @relation("CreatedTasks")
-  clientTasks    ClientTask[]
-  comments       Comment[]
-  notifications  Notification[]
+  // Reverse relations
+  createdTasks     Task[]              @relation("TaskCreator")
+  assignedTasks    Task[]              @relation("TaskAssignee")
+  taskComments     TaskComment[]
+  taskActivities   TaskActivity[]
+  uploadedFiles    Attachment[]
+  reportedTickets  Ticket[]            @relation("TicketReporter")
+  assignedTickets  Ticket[]            @relation("TicketAssignee")
+  ticketMessages   TicketMessage[]
+  createdDeals     Deal[]              @relation("DealCreator")
+  ownedDeals       Deal[]              @relation("DealOwner")
+  notes            ClientNote[]
+  notifications    Notification[]
+  notificationPref NotificationPreference?
+  chatMemberships  ChatMember[]
+  chatMessages     Message[]
+  aiConversations  AIConversation[]
+  auditLogs        AuditLog[]
+  approvedLeaves   Leave[]             @relation("LeaveApprover")
+  createdInvoices  Invoice[]           @relation("InvoiceCreator")
+  createdLeads     Lead[]              @relation("LeadCreator")
+  ownedLeads       Lead[]              @relation("LeadOwner")
 
+  @@index([role])
+  @@index([isActive])
+  @@index([deletedAt])
   @@map("users")
 }
 
-// Clients
+model Company {
+  id          String      @id @default(cuid())
+  type        CompanyType @unique
+  name        String
+  legalName   String?
+  domain      String?
+  brandColor  String?
+  logoUrl     String?
+  description String?
+  metadata    Json?
+  createdAt   DateTime    @default(now())
+  updatedAt   DateTime    @updatedAt
+  deletedAt   DateTime?
+
+  departments Department[]
+  employees   Employee[]
+  clients     Client[]
+  deals       Deal[]
+  tickets     Ticket[]
+  invoices    Invoice[]
+  campaigns   ColdEmailCampaign[]
+  leads       Lead[]
+
+  @@index([deletedAt])
+  @@map("companies")
+}
+
+model Department {
+  id          String         @id @default(cuid())
+  companyId   String
+  kind        DepartmentKind @default(OTHER)
+  name        String
+  description String?
+  parentId    String?
+  headId      String?
+  createdAt   DateTime       @default(now())
+  updatedAt   DateTime       @updatedAt
+  deletedAt   DateTime?
+
+  company   Company      @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  parent    Department?  @relation("DepartmentTree", fields: [parentId], references: [id])
+  children  Department[] @relation("DepartmentTree")
+  head      Employee?    @relation("DepartmentHead", fields: [headId], references: [id])
+  employees Employee[]   @relation("DepartmentMembers")
+  roles     Role[]
+
+  @@unique([companyId, name])
+  @@index([companyId])
+  @@index([parentId])
+  @@index([headId])
+  @@index([deletedAt])
+  @@map("departments")
+}
+
+model Role {
+  id           String     @id @default(cuid())
+  name         String
+  description  String?
+  departmentId String?
+  permissions  String[]
+  createdAt    DateTime   @default(now())
+  updatedAt    DateTime   @updatedAt
+  deletedAt    DateTime?
+
+  department Department? @relation(fields: [departmentId], references: [id], onDelete: SetNull)
+  employees  Employee[]
+
+  @@unique([name, departmentId])
+  @@index([departmentId])
+  @@index([deletedAt])
+  @@map("roles")
+}
+
+model Employee {
+  id            String         @id @default(cuid())
+  userId        String         @unique
+  companyId     String
+  departmentId  String?
+  roleId        String?
+  managerId     String?
+  employeeCode  String?        @unique
+  position      String?
+  status        EmployeeStatus @default(ACTIVE)
+  employmentType String?       // FULL_TIME, PART_TIME, CONTRACT, INTERN
+  hireDate      DateTime?
+  terminationDate DateTime?
+  birthday      DateTime?
+  emergencyContact Json?
+  metadata      Json?
+  createdAt     DateTime       @default(now())
+  updatedAt     DateTime       @updatedAt
+  deletedAt     DateTime?
+
+  user        User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+  company     Company      @relation(fields: [companyId], references: [id])
+  department  Department?  @relation("DepartmentMembers", fields: [departmentId], references: [id])
+  role        Role?        @relation(fields: [roleId], references: [id])
+  manager     Employee?    @relation("EmployeeReports", fields: [managerId], references: [id])
+  reports     Employee[]   @relation("EmployeeReports")
+  headedDepts Department[] @relation("DepartmentHead")
+  leaves      Leave[]
+  balances    LeaveBalance[]
+
+  @@index([companyId])
+  @@index([departmentId])
+  @@index([roleId])
+  @@index([managerId])
+  @@index([status])
+  @@index([deletedAt])
+  @@map("employees")
+}
+
+// ============================================================================
+// CLIENT RELATIONSHIPS (Slice 3)
+// ============================================================================
+
 model Client {
-  id           String       @id @default(cuid())
-  companyName  String
-  contactName  String
-  email        String
-  phone        String?
-  country      String?
-  countryFlag  String?
-  website      String?
-  source       String?      // Referral, Website, Cold Call, etc.
-  status       ClientStatus @default(ACTIVE)
-  brandId      String
-  createdAt    DateTime     @default(now())
-  updatedAt    DateTime     @updatedAt
+  id            String        @id @default(cuid())
+  companyId     String
+  name          String
+  legalName     String?
+  email         String?
+  phone         String?
+  website       String?
+  industry      String?
+  country       String?
+  city          String?
+  status        ClientStatus  @default(PROSPECT)
+  health        ClientHealth  @default(UNKNOWN)
+  mrr           Decimal?      @db.Decimal(12, 2)
+  arr           Decimal?      @db.Decimal(12, 2)
+  lifetimeValue Decimal?      @db.Decimal(12, 2)
+  signupDate    DateTime?
+  churnDate     DateTime?
+  ownerId       String?
+  notes         String?
+  tags          String[]
+  metadata      Json?
+  createdAt     DateTime      @default(now())
+  updatedAt     DateTime      @updatedAt
+  deletedAt     DateTime?
 
-  brand        Brand        @relation(fields: [brandId], references: [id])
-  packages     Package[]
-  notes        Note[]
+  company  Company       @relation(fields: [companyId], references: [id])
+  contacts Contact[]
+  deals    Deal[]
+  tickets  Ticket[]
+  invoices Invoice[]
+  notesLog ClientNote[]
+  chatRooms ChatRoom[]
 
+  @@index([companyId])
+  @@index([status])
+  @@index([health])
+  @@index([ownerId])
+  @@index([email])
+  @@index([deletedAt])
   @@map("clients")
 }
 
-// Service Packages per Client
-model Package {
-  id          String   @id @default(cuid())
-  name        String   // e.g., "Web Development Premium", "SEO Basic"
-  description String?
-  price       Float    @default(0)
-  currency    String   @default("USD")
-  duration    Int?     // Duration in days
-  startDate   DateTime?
-  endDate     DateTime?
-  isActive    Boolean  @default(true)
-  brandId     String
-  clientId    String
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
+model Contact {
+  id        String      @id @default(cuid())
+  clientId  String
+  kind      ContactKind @default(PRIMARY)
+  firstName String?
+  lastName  String?
+  fullName  String?
+  email     String?
+  phone     String?
+  title     String?
+  isPrimary Boolean     @default(false)
+  notes     String?
+  metadata  Json?
+  createdAt DateTime    @default(now())
+  updatedAt DateTime    @updatedAt
+  deletedAt DateTime?
 
-  brand       Brand        @relation(fields: [brandId], references: [id])
-  client      Client       @relation(fields: [clientId], references: [id], onDelete: Cascade)
-  tasks       ClientTask[]
+  client Client @relation(fields: [clientId], references: [id], onDelete: Cascade)
 
-  @@map("packages")
+  @@index([clientId])
+  @@index([email])
+  @@index([deletedAt])
+  @@map("contacts")
 }
 
-// Tasks within a Package (assigned to specific employees)
-model ClientTask {
-  id          String      @id @default(cuid())
-  title       String
-  description String?
-  status      TaskStatus  @default(TODO)
-  priority    Priority    @default(MEDIUM)
-  department  Department
-  assignedToId String?
-  packageId   String
-  createdById String
-  dueDate     DateTime?
-  completedAt DateTime?
-  order       Int         @default(0)
-  createdAt   DateTime    @default(now())
-  updatedAt   DateTime    @updatedAt
+model ClientNote {
+  id        String    @id @default(cuid())
+  clientId  String
+  authorId  String
+  content   String
+  isPinned  Boolean   @default(false)
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+  deletedAt DateTime?
 
-  package     Package     @relation(fields: [packageId], references: [id], onDelete: Cascade)
-  assignedTo  User?       @relation("AssignedTasks", fields: [assignedToId], references: [id])
-  createdBy   User        @relation("CreatedTasks", fields: [createdById], references: [id])
-  comments    Comment[]
+  client Client @relation(fields: [clientId], references: [id], onDelete: Cascade)
+  author User   @relation(fields: [authorId], references: [id])
+
+  @@index([clientId])
+  @@index([authorId])
+  @@index([deletedAt])
+  @@map("client_notes")
+}
+
+model Pipeline {
+  id          String    @id @default(cuid())
+  name        String
+  description String?
+  isDefault   Boolean   @default(false)
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+  deletedAt   DateTime?
+
+  stages Stage[]
+  deals  Deal[]
+
+  @@index([deletedAt])
+  @@map("pipelines")
+}
+
+model Stage {
+  id          String    @id @default(cuid())
+  pipelineId  String
+  name        String
+  description String?
+  position    Int
+  probability Int       @default(0)
+  isWon       Boolean   @default(false)
+  isLost      Boolean   @default(false)
+  color       String?
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+  deletedAt   DateTime?
+
+  pipeline Pipeline @relation(fields: [pipelineId], references: [id], onDelete: Cascade)
+  deals    Deal[]
+
+  @@unique([pipelineId, position])
+  @@index([pipelineId])
+  @@index([deletedAt])
+  @@map("stages")
+}
+
+model Deal {
+  id            String     @id @default(cuid())
+  companyId     String
+  clientId      String?
+  pipelineId    String
+  stageId       String
+  ownerId       String?
+  createdById   String
+  title         String
+  description   String?
+  value         Decimal    @default(0) @db.Decimal(12, 2)
+  currency      String     @default("USD")
+  probability   Int        @default(0)
+  status        DealStatus @default(OPEN)
+  stageEnum     DealStage  @default(PROSPECT)
+  expectedClose DateTime?
+  closedAt      DateTime?
+  lostReason    String?
+  source        String?
+  tags          String[]
+  metadata      Json?
+  createdAt     DateTime   @default(now())
+  updatedAt     DateTime   @updatedAt
+  deletedAt     DateTime?
+
+  company   Company   @relation(fields: [companyId], references: [id])
+  client    Client?   @relation(fields: [clientId], references: [id])
+  pipeline  Pipeline  @relation(fields: [pipelineId], references: [id])
+  stage     Stage     @relation(fields: [stageId], references: [id])
+  owner     User?     @relation("DealOwner", fields: [ownerId], references: [id])
+  createdBy User      @relation("DealCreator", fields: [createdById], references: [id])
+
+  @@index([companyId])
+  @@index([clientId])
+  @@index([pipelineId])
+  @@index([stageId])
+  @@index([ownerId])
+  @@index([status])
+  @@index([deletedAt])
+  @@map("deals")
+}
+
+// ============================================================================
+// WORK MANAGEMENT (Slice 2)
+// ============================================================================
+
+model Task {
+  id            String       @id @default(cuid())
+  title         String
+  description   String?
+  status        TaskStatus   @default(TODO)
+  priority      TaskPriority @default(MEDIUM)
+  createdById   String
+  assignedToId  String?
+  parentId      String?
+  clientId      String?
+  dealId        String?
+  ticketId      String?
+  dueDate       DateTime?
+  startedAt     DateTime?
+  completedAt   DateTime?
+  position      Int          @default(0)
+  estimateHours Decimal?     @db.Decimal(8, 2)
+  actualHours   Decimal?     @db.Decimal(8, 2)
+  tags          String[]
+  metadata      Json?
+  createdAt     DateTime     @default(now())
+  updatedAt     DateTime     @updatedAt
+  deletedAt     DateTime?
+
+  createdBy   User           @relation("TaskCreator", fields: [createdById], references: [id])
+  assignedTo  User?          @relation("TaskAssignee", fields: [assignedToId], references: [id])
+  parent      Task?          @relation("TaskSubtasks", fields: [parentId], references: [id], onDelete: Cascade)
+  subtasks    Task[]         @relation("TaskSubtasks")
+  comments    TaskComment[]
+  activities  TaskActivity[]
   attachments Attachment[]
 
-  @@map("client_tasks")
-}
-
-// Standalone Tasks (not tied to a package)
-model Task {
-  id          String      @id @default(cuid())
-  title       String
-  description String?
-  status      TaskStatus  @default(TODO)
-  priority    Priority    @default(MEDIUM)
-  department  Department
-  assignedToId String?
-  createdById String
-  brandId     String?
-  dueDate     DateTime?
-  completedAt DateTime?
-  order       Int         @default(0)
-  createdAt   DateTime    @default(now())
-  updatedAt   DateTime    @updatedAt
-
-  assignedTo  User?       @relation("AssignedTasks", fields: [assignedToId], references: [id])
-  createdBy   User        @relation("CreatedTasks", fields: [createdById], references: [id])
-
+  @@index([status])
+  @@index([priority])
+  @@index([createdById])
+  @@index([assignedToId])
+  @@index([parentId])
+  @@index([clientId])
+  @@index([dealId])
+  @@index([ticketId])
+  @@index([dueDate])
+  @@index([deletedAt])
   @@map("tasks")
 }
 
-// Comments on Tasks
-model Comment {
-  id        String   @id @default(cuid())
-  content   String
+model TaskComment {
+  id        String    @id @default(cuid())
   taskId    String
-  clientTaskId String?
   authorId  String
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+  content   String
+  isEdited  Boolean   @default(false)
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+  deletedAt DateTime?
 
-  task      Task?     @relation(fields: [taskId], references: [id], onDelete: Cascade)
-  clientTask ClientTask? @relation(fields: [clientTaskId], references: [id], onDelete: Cascade)
-  author    User      @relation(fields: [authorId], references: [id])
+  task   Task @relation(fields: [taskId], references: [id], onDelete: Cascade)
+  author User @relation(fields: [authorId], references: [id])
 
-  @@map("comments")
+  @@index([taskId])
+  @@index([authorId])
+  @@index([deletedAt])
+  @@map("task_comments")
 }
 
-// File Attachments
+model TaskActivity {
+  id        String           @id @default(cuid())
+  taskId    String
+  actorId   String
+  kind      TaskActivityKind
+  fromValue String?
+  toValue   String?
+  metadata  Json?
+  createdAt DateTime         @default(now())
+
+  task  Task @relation(fields: [taskId], references: [id], onDelete: Cascade)
+  actor User @relation(fields: [actorId], references: [id])
+
+  @@index([taskId])
+  @@index([actorId])
+  @@index([createdAt])
+  @@map("task_activities")
+}
+
 model Attachment {
-  id          String      @id @default(cuid())
-  filename    String
-  url         String
-  mimeType    String?
-  size        Int?
-  taskId      String?
-  clientTaskId String?
+  id           String    @id @default(cuid())
+  taskId       String?
+  ticketId     String?
+  invoiceId    String?
   uploadedById String
-  createdAt   DateTime    @default(now())
+  filename     String
+  mimeType     String
+  size         Int
+  url          String
+  storageKey   String?
+  createdAt    DateTime  @default(now())
+  deletedAt    DateTime?
 
-  task        Task?       @relation(fields: [taskId], references: [id], onDelete: Cascade)
-  clientTask  ClientTask? @relation(fields: [clientTaskId], references: [id], onDelete: Cascade)
-  uploadedBy  User        @relation(fields: [uploadedById], references: [id])
+  task       Task?    @relation(fields: [taskId], references: [id], onDelete: Cascade)
+  ticket     Ticket?  @relation(fields: [ticketId], references: [id], onDelete: Cascade)
+  invoice    Invoice? @relation(fields: [invoiceId], references: [id], onDelete: Cascade)
+  uploadedBy User     @relation(fields: [uploadedById], references: [id])
 
+  @@index([taskId])
+  @@index([ticketId])
+  @@index([invoiceId])
+  @@index([uploadedById])
+  @@index([deletedAt])
   @@map("attachments")
 }
 
-// Notes on Clients
-model Note {
-  id        String   @id @default(cuid())
-  content   String
-  clientId  String
-  authorId  String
-  isPrivate Boolean  @default(true)
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+// ============================================================================
+// SUPPORT (Slice 4)
+// ============================================================================
 
-  client    Client   @relation(fields: [clientId], references: [id], onDelete: Cascade)
-  author    User     @relation(fields: [authorId], references: [id])
+model SLA {
+  id                  String    @id @default(cuid())
+  name                String    @unique
+  description         String?
+  responseMinutes     Int
+  resolutionMinutes   Int
+  businessHoursOnly   Boolean   @default(true)
+  appliesToPriority   TicketPriority?
+  isActive            Boolean   @default(true)
+  createdAt           DateTime  @default(now())
+  updatedAt           DateTime  @updatedAt
+  deletedAt           DateTime?
 
-  @@map("notes")
+  tickets Ticket[]
+
+  @@index([isActive])
+  @@index([deletedAt])
+  @@map("slas")
 }
 
-// Notifications
+model Ticket {
+  id              String         @id @default(cuid())
+  number          Int            @unique @default(autoincrement())
+  companyId       String
+  clientId        String?
+  reporterId      String
+  assignedToId    String?
+  slaId           String?
+  subject         String
+  description     String
+  status          TicketStatus   @default(OPEN)
+  priority        TicketPriority @default(NORMAL)
+  channel         TicketChannel  @default(WEB)
+  category        String?
+  tags            String[]
+  acknowledgedAt  DateTime?
+  firstResponseAt DateTime?
+  resolvedAt      DateTime?
+  closedAt        DateTime?
+  responseDueAt   DateTime?
+  resolutionDueAt DateTime?
+  metadata        Json?
+  createdAt       DateTime       @default(now())
+  updatedAt       DateTime       @updatedAt
+  deletedAt       DateTime?
+
+  company     Company         @relation(fields: [companyId], references: [id])
+  client      Client?         @relation(fields: [clientId], references: [id])
+  reporter    User            @relation("TicketReporter", fields: [reporterId], references: [id])
+  assignedTo  User?           @relation("TicketAssignee", fields: [assignedToId], references: [id])
+  sla         SLA?            @relation(fields: [slaId], references: [id])
+  messages    TicketMessage[]
+  attachments Attachment[]
+
+  @@index([companyId])
+  @@index([clientId])
+  @@index([reporterId])
+  @@index([assignedToId])
+  @@index([slaId])
+  @@index([status])
+  @@index([priority])
+  @@index([deletedAt])
+  @@map("tickets")
+}
+
+model TicketMessage {
+  id         String    @id @default(cuid())
+  ticketId   String
+  authorId   String
+  content    String
+  isInternal Boolean   @default(false)
+  createdAt  DateTime  @default(now())
+  updatedAt  DateTime  @updatedAt
+  deletedAt  DateTime?
+
+  ticket Ticket @relation(fields: [ticketId], references: [id], onDelete: Cascade)
+  author User   @relation(fields: [authorId], references: [id])
+
+  @@index([ticketId])
+  @@index([authorId])
+  @@index([deletedAt])
+  @@map("ticket_messages")
+}
+
+// ============================================================================
+// BILLING (Slice 6)
+// ============================================================================
+
+model Invoice {
+  id            String        @id @default(cuid())
+  number        String        @unique
+  companyId     String
+  clientId      String
+  createdById   String
+  status        InvoiceStatus @default(DRAFT)
+  currency      String        @default("USD")
+  subtotal      Decimal       @default(0) @db.Decimal(12, 2)
+  taxAmount     Decimal       @default(0) @db.Decimal(12, 2)
+  discountAmount Decimal      @default(0) @db.Decimal(12, 2)
+  total         Decimal       @default(0) @db.Decimal(12, 2)
+  amountPaid    Decimal       @default(0) @db.Decimal(12, 2)
+  issueDate     DateTime
+  dueDate       DateTime
+  sentAt        DateTime?
+  paidAt        DateTime?
+  notes         String?
+  terms         String?
+  metadata      Json?
+  createdAt     DateTime      @default(now())
+  updatedAt     DateTime      @updatedAt
+  deletedAt     DateTime?
+
+  company    Company           @relation(fields: [companyId], references: [id])
+  client     Client            @relation(fields: [clientId], references: [id])
+  createdBy  User              @relation("InvoiceCreator", fields: [createdById], references: [id])
+  items      InvoiceLineItem[]
+  payments   Payment[]
+  attachments Attachment[]
+
+  @@index([companyId])
+  @@index([clientId])
+  @@index([createdById])
+  @@index([status])
+  @@index([dueDate])
+  @@index([deletedAt])
+  @@map("invoices")
+}
+
+model InvoiceLineItem {
+  id          String   @id @default(cuid())
+  invoiceId   String
+  description String
+  quantity    Decimal  @default(1) @db.Decimal(8, 2)
+  unitPrice   Decimal  @db.Decimal(12, 2)
+  amount      Decimal  @db.Decimal(12, 2)
+  taxRate     Decimal  @default(0) @db.Decimal(5, 2)
+  position    Int      @default(0)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  invoice Invoice @relation(fields: [invoiceId], references: [id], onDelete: Cascade)
+
+  @@index([invoiceId])
+  @@map("invoice_line_items")
+}
+
+model Payment {
+  id            String        @id @default(cuid())
+  invoiceId     String
+  method        PaymentMethod
+  status        PaymentStatus @default(PENDING)
+  amount        Decimal       @db.Decimal(12, 2)
+  currency      String        @default("USD")
+  transactionId String?
+  paidAt        DateTime?
+  notes         String?
+  metadata      Json?
+  createdAt     DateTime      @default(now())
+  updatedAt     DateTime      @updatedAt
+  deletedAt     DateTime?
+
+  invoice Invoice @relation(fields: [invoiceId], references: [id], onDelete: Cascade)
+
+  @@index([invoiceId])
+  @@index([status])
+  @@index([transactionId])
+  @@index([deletedAt])
+  @@map("payments")
+}
+
+// ============================================================================
+// HR (Slice 6)
+// ============================================================================
+
+model LeaveType {
+  id           String        @id @default(cuid())
+  kind         LeaveTypeKind
+  name         String        @unique
+  description  String?
+  defaultDays  Int           @default(0)
+  isPaid       Boolean       @default(true)
+  isActive     Boolean       @default(true)
+  createdAt    DateTime      @default(now())
+  updatedAt    DateTime      @updatedAt
+  deletedAt    DateTime?
+
+  leaves   Leave[]
+  balances LeaveBalance[]
+
+  @@index([kind])
+  @@index([deletedAt])
+  @@map("leave_types")
+}
+
+model LeaveBalance {
+  id          String   @id @default(cuid())
+  employeeId  String
+  leaveTypeId String
+  year        Int
+  entitled    Decimal  @default(0) @db.Decimal(6, 2)
+  used        Decimal  @default(0) @db.Decimal(6, 2)
+  remaining   Decimal  @default(0) @db.Decimal(6, 2)
+  carryOver   Decimal  @default(0) @db.Decimal(6, 2)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  employee  Employee  @relation(fields: [employeeId], references: [id], onDelete: Cascade)
+  leaveType LeaveType @relation(fields: [leaveTypeId], references: [id])
+
+  @@unique([employeeId, leaveTypeId, year])
+  @@index([employeeId])
+  @@index([leaveTypeId])
+  @@map("leave_balances")
+}
+
+model Leave {
+  id          String      @id @default(cuid())
+  employeeId  String
+  leaveTypeId String
+  startDate   DateTime
+  endDate     DateTime
+  days        Decimal     @db.Decimal(6, 2)
+  status      LeaveStatus @default(PENDING)
+  reason      String?
+  approverId  String?
+  approvedAt  DateTime?
+  rejectedAt  DateTime?
+  rejectionReason String?
+  metadata    Json?
+  createdAt   DateTime    @default(now())
+  updatedAt   DateTime    @updatedAt
+  deletedAt   DateTime?
+
+  employee  Employee  @relation(fields: [employeeId], references: [id], onDelete: Cascade)
+  leaveType LeaveType @relation(fields: [leaveTypeId], references: [id])
+  approver  User?     @relation("LeaveApprover", fields: [approverId], references: [id])
+
+  @@index([employeeId])
+  @@index([leaveTypeId])
+  @@index([approverId])
+  @@index([status])
+  @@index([startDate])
+  @@index([deletedAt])
+  @@map("leaves")
+}
+
+// ============================================================================
+// COMMUNICATION (Slice 5)
+// ============================================================================
+
 model Notification {
-  id        String   @id @default(cuid())
-  title     String
-  message   String
-  type      String    // TASK_ASSIGNED, TASK_COMPLETED, COMMENT_ADDED, etc.
+  id        String              @id @default(cuid())
   userId    String
-  isRead    Boolean  @default(false)
-  data      Json?
-  createdAt DateTime @default(now())
+  kind      NotificationKind
+  channel   NotificationChannel @default(IN_APP)
+  title     String
+  body      String?
+  link      String?
+  isRead    Boolean             @default(false)
+  readAt    DateTime?
+  metadata  Json?
+  createdAt DateTime            @default(now())
 
-  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
 
+  @@index([userId])
+  @@index([isRead])
+  @@index([kind])
+  @@index([createdAt])
   @@map("notifications")
 }
 
-// Sessions for Auth
-model Session {
+model NotificationPreference {
   id           String   @id @default(cuid())
-  userId       String
-  token        String   @unique
-  expiresAt    DateTime
+  userId       String   @unique
+  emailEnabled Boolean  @default(true)
+  pushEnabled  Boolean  @default(true)
+  smsEnabled   Boolean  @default(false)
+  inAppEnabled Boolean  @default(true)
+  preferences  Json?
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("notification_preferences")
+}
+
+model ChatRoom {
+  id          String       @id @default(cuid())
+  kind        ChatRoomKind @default(DIRECT)
+  name        String?
+  description String?
+  clientId    String?
+  ticketId    String?
+  isArchived  Boolean      @default(false)
+  metadata    Json?
+  createdAt   DateTime     @default(now())
+  updatedAt   DateTime     @updatedAt
+  deletedAt   DateTime?
+
+  client   Client?      @relation(fields: [clientId], references: [id])
+  members  ChatMember[]
+  messages Message[]
+
+  @@index([kind])
+  @@index([clientId])
+  @@index([ticketId])
+  @@index([deletedAt])
+  @@map("chat_rooms")
+}
+
+model ChatMember {
+  id        String    @id @default(cuid())
+  roomId    String
+  userId    String
+  joinedAt  DateTime  @default(now())
+  lastReadAt DateTime?
+
+  room ChatRoom @relation(fields: [roomId], references: [id], onDelete: Cascade)
+  user User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([roomId, userId])
+  @@index([roomId])
+  @@index([userId])
+  @@map("chat_members")
+}
+
+model Message {
+  id        String      @id @default(cuid())
+  roomId    String
+  authorId  String
+  kind      MessageKind @default(TEXT)
+  content   String
+  isEdited  Boolean     @default(false)
+  metadata  Json?
+  createdAt DateTime    @default(now())
+  updatedAt DateTime    @updatedAt
+  deletedAt DateTime?
+
+  room   ChatRoom @relation(fields: [roomId], references: [id], onDelete: Cascade)
+  author User     @relation(fields: [authorId], references: [id])
+
+  @@index([roomId])
+  @@index([authorId])
+  @@index([createdAt])
+  @@index([deletedAt])
+  @@map("messages")
+}
+
+// ============================================================================
+// ACQUISITION (Slice 6)
+// ============================================================================
+
+model LeadSource {
+  id          String    @id @default(cuid())
+  name        String    @unique
+  description String?
+  isActive    Boolean   @default(true)
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+  deletedAt   DateTime?
+
+  leads Lead[]
+
+  @@index([deletedAt])
+  @@map("lead_sources")
+}
+
+model Lead {
+  id          String     @id @default(cuid())
+  companyId   String
+  sourceId    String?
+  ownerId     String?
+  createdById String
+  firstName   String?
+  lastName    String?
+  fullName    String?
+  email       String?
+  phone       String?
+  jobTitle    String?
+  companyName String?
+  website     String?
+  status      LeadStatus @default(NEW)
+  stage       LeadStage  @default(COLD)
+  score       Int        @default(0)
+  notes       String?
+  tags        String[]
+  metadata    Json?
+  convertedAt DateTime?
+  createdAt   DateTime   @default(now())
+  updatedAt   DateTime   @updatedAt
+  deletedAt   DateTime?
+
+  company   Company             @relation(fields: [companyId], references: [id])
+  source    LeadSource?         @relation(fields: [sourceId], references: [id])
+  owner     User?               @relation("LeadOwner", fields: [ownerId], references: [id])
+  createdBy User                @relation("LeadCreator", fields: [createdById], references: [id])
+  events    EmailEvent[]
+  campaigns CampaignRecipient[]
+
+  @@index([companyId])
+  @@index([sourceId])
+  @@index([ownerId])
+  @@index([status])
+  @@index([stage])
+  @@index([email])
+  @@index([deletedAt])
+  @@map("leads")
+}
+
+model ColdEmailCampaign {
+  id          String         @id @default(cuid())
+  companyId   String
+  name        String
+  subject     String
+  body        String
+  fromName    String?
+  fromEmail   String?
+  status      CampaignStatus @default(DRAFT)
+  scheduledAt DateTime?
+  sentAt      DateTime?
+  metadata    Json?
+  createdAt   DateTime       @default(now())
+  updatedAt   DateTime       @updatedAt
+  deletedAt   DateTime?
+
+  company    Company             @relation(fields: [companyId], references: [id])
+  recipients CampaignRecipient[]
+  events     EmailEvent[]
+
+  @@index([companyId])
+  @@index([status])
+  @@index([deletedAt])
+  @@map("cold_email_campaigns")
+}
+
+model CampaignRecipient {
+  id         String    @id @default(cuid())
+  campaignId String
+  leadId     String
+  sentAt     DateTime?
+  openedAt   DateTime?
+  clickedAt  DateTime?
+  repliedAt  DateTime?
+  bouncedAt  DateTime?
+  createdAt  DateTime  @default(now())
+
+  campaign ColdEmailCampaign @relation(fields: [campaignId], references: [id], onDelete: Cascade)
+  lead     Lead              @relation(fields: [leadId], references: [id], onDelete: Cascade)
+
+  @@unique([campaignId, leadId])
+  @@index([campaignId])
+  @@index([leadId])
+  @@map("campaign_recipients")
+}
+
+model EmailEvent {
+  id         String         @id @default(cuid())
+  campaignId String?
+  leadId     String?
+  kind       EmailEventKind
+  email      String
+  metadata   Json?
+  occurredAt DateTime       @default(now())
+
+  campaign ColdEmailCampaign? @relation(fields: [campaignId], references: [id], onDelete: Cascade)
+  lead     Lead?              @relation(fields: [leadId], references: [id], onDelete: Cascade)
+
+  @@index([campaignId])
+  @@index([leadId])
+  @@index([kind])
+  @@index([occurredAt])
+  @@index([email])
+  @@map("email_events")
+}
+
+// ============================================================================
+// AI (Slice 5)
+// ============================================================================
+
+model AIConversation {
+  id        String    @id @default(cuid())
+  userId    String
+  title     String?
+  model     String?
+  metadata  Json?
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+  deletedAt DateTime?
+
+  user     User        @relation(fields: [userId], references: [id], onDelete: Cascade)
+  messages AIMessage[]
+
+  @@index([userId])
+  @@index([deletedAt])
+  @@map("ai_conversations")
+}
+
+model AIMessage {
+  id             String   @id @default(cuid())
+  conversationId String
+  role           AIRole
+  content        String
+  tokens         Int?
+  toolCalls      Json?
+  metadata       Json?
+  createdAt      DateTime @default(now())
+
+  conversation AIConversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+
+  @@index([conversationId])
+  @@index([createdAt])
+  @@map("ai_messages")
+}
+
+// ============================================================================
+// COMPLIANCE
+// ============================================================================
+
+model AuditLog {
+  id           String      @id @default(cuid())
+  actorId      String?
+  action       AuditAction
+  resourceType String
+  resourceId   String?
   ipAddress    String?
   userAgent    String?
-  createdAt    DateTime @default(now())
+  before       Json?
+  after        Json?
+  metadata     Json?
+  createdAt    DateTime    @default(now())
 
-  @@map("sessions")
+  actor User? @relation(fields: [actorId], references: [id])
+
+  @@index([actorId])
+  @@index([action])
+  @@index([resourceType, resourceId])
+  @@index([createdAt])
+  @@map("audit_logs")
 }
