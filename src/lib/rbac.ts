@@ -38,7 +38,16 @@ export type Permission =
   | "deals.update.any"
   | "deals.delete"
   | "deals.bulk"
-  | "pipelines.manage";
+  | "pipelines.manage"
+  | "tickets.read"
+  | "tickets.create"
+  | "tickets.update"
+  | "tickets.update.any"
+  | "tickets.delete"
+  | "tickets.bulk"
+  | "tickets.reply"
+  | "tickets.reply.internal"
+  | "slas.manage";
 
 const ALL_EMPLOYEE: Permission[] = [
   "employees.read",
@@ -92,6 +101,17 @@ const ALL_DEALS: Permission[] = [
   "deals.bulk",
 ];
 
+const ALL_TICKETS: Permission[] = [
+  "tickets.read",
+  "tickets.create",
+  "tickets.update",
+  "tickets.update.any",
+  "tickets.delete",
+  "tickets.bulk",
+  "tickets.reply",
+  "tickets.reply.internal",
+];
+
 const ROLE_PERMISSIONS: Record<UserRole, Permission[]> = {
   OWNER: [
     ...ALL_EMPLOYEE,
@@ -99,7 +119,9 @@ const ROLE_PERMISSIONS: Record<UserRole, Permission[]> = {
     ...ALL_PROJECTS,
     ...ALL_CLIENTS,
     ...ALL_DEALS,
+    ...ALL_TICKETS,
     "pipelines.manage",
+    "slas.manage",
   ],
   ADMIN: [
     ...ALL_EMPLOYEE,
@@ -107,7 +129,9 @@ const ROLE_PERMISSIONS: Record<UserRole, Permission[]> = {
     ...ALL_PROJECTS,
     ...ALL_CLIENTS,
     ...ALL_DEALS,
+    ...ALL_TICKETS,
     "pipelines.manage",
+    "slas.manage",
   ],
   MANAGER: [
     "employees.read",
@@ -139,6 +163,14 @@ const ROLE_PERMISSIONS: Record<UserRole, Permission[]> = {
     "deals.update.any",
     "deals.delete",
     "deals.bulk",
+    "tickets.read",
+    "tickets.create",
+    "tickets.update",
+    "tickets.update.any",
+    "tickets.delete",
+    "tickets.bulk",
+    "tickets.reply",
+    "tickets.reply.internal",
   ],
   EMPLOYEE: [
     "employees.read",
@@ -154,6 +186,10 @@ const ROLE_PERMISSIONS: Record<UserRole, Permission[]> = {
     "deals.read",
     "deals.create",
     "deals.update",
+    "tickets.read",
+    "tickets.create",
+    "tickets.update",
+    "tickets.reply",
   ],
   VIEWER: [
     "employees.read",
@@ -161,6 +197,7 @@ const ROLE_PERMISSIONS: Record<UserRole, Permission[]> = {
     "projects.read",
     "clients.read",
     "deals.read",
+    "tickets.read",
   ],
 };
 
