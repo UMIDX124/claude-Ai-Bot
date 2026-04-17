@@ -500,9 +500,7 @@ async function main() {
   await seedDepartmentHeads();
   console.log("→ seeding Slice 2 (projects, labels, tasks, subtasks, comments, deps)");
   await seedSlice2();
-  console.log("→ seeding Slice 3 (pipelines, stages, clients, contacts, deals, notes)");
-  await seedSlice3();
-  console.log("✔ seed complete");
+  console.log("✔ seed complete (Slice 3 uses standalone prisma/seed.slice3.ts)");
 }
 
 type ProjectSeed = {

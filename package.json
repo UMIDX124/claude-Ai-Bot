@@ -64,6 +64,7 @@
   },
   "devDependencies": {
     "@eslint/eslintrc": "^3.3.5",
+    "@faker-js/faker": "^10.4.0",
     "@next/eslint-plugin-next": "^16.2.4",
     "@sentry/nextjs": "^10.49.0",
     "@tailwindcss/postcss": "^4.0.0",
