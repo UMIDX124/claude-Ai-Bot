@@ -391,6 +391,7 @@ model Company {
   projects    Project[]
   tasks       Task[]
   taskLabels  TaskLabel[]
+  pipelines   Pipeline[]
 
   @@index([deletedAt])
   @@map("companies")
@@ -493,6 +494,8 @@ model Employee {
   ledProjects Project[]    @relation("ProjectLead")
   reportedTasks Task[]     @relation("EmployeeTaskReporter")
   assignedTasks Task[]     @relation("EmployeeTaskAssignee")
+  ownedClients  Client[]   @relation("ClientOwner")
+  ownedDealsEmp Deal[]     @relation("DealOwnerEmployee")
 
   @@index([companyId])
   @@index([departmentId])
@@ -510,69 +513,84 @@ model Employee {
 // ============================================================================
 
 model Client {
-  id            String        @id @default(cuid())
-  companyId     String
-  name          String
-  legalName     String?
-  email         String?
-  phone         String?
-  website       String?
-  industry      String?
-  country       String?
-  city          String?
-  status        ClientStatus  @default(PROSPECT)
-  health        ClientHealth  @default(UNKNOWN)
-  mrr           Decimal?      @db.Decimal(12, 2)
-  arr           Decimal?      @db.Decimal(12, 2)
-  lifetimeValue Decimal?      @db.Decimal(12, 2)
-  signupDate    DateTime?
-  churnDate     DateTime?
-  ownerId       String?
-  notes         String?
-  tags          String[]
-  metadata      Json?
-  createdAt     DateTime      @default(now())
-  updatedAt     DateTime      @updatedAt
-  deletedAt     DateTime?
+  id              String        @id @default(cuid())
+  companyId       String
+  name            String
+  legalName       String?
+  email           String?
+  phone           String?
+  website         String?
+  industry        String?
+  country         String?
+  city            String?
+  status          ClientStatus  @default(PROSPECT)
+  health          ClientHealth  @default(UNKNOWN)
+  healthScore     Int?
+  accountTier     String?
+  logoUrl         String?
+  slackChannel    String?
+  mrr             Decimal?      @db.Decimal(12, 2)
+  arr             Decimal?      @db.Decimal(12, 2)
+  lifetimeValue   Decimal?      @db.Decimal(12, 2)
+  signupDate      DateTime?
+  renewalDate     DateTime?
+  churnDate       DateTime?
+  ownerId         String?
+  ownerEmployeeId String?
+  notes           String?
+  tags            String[]
+  metadata        Json?
+  createdAt       DateTime      @default(now())
+  updatedAt       DateTime      @updatedAt
+  deletedAt       DateTime?
 
-  company  Company       @relation(fields: [companyId], references: [id])
-  contacts Contact[]
-  deals    Deal[]
-  tickets  Ticket[]
-  invoices Invoice[]
-  notesLog ClientNote[]
-  chatRooms ChatRoom[]
+  company       Company       @relation(fields: [companyId], references: [id])
+  ownerEmployee Employee?     @relation("ClientOwner", fields: [ownerEmployeeId], references: [id])
+  contacts      Contact[]
+  deals         Deal[]
+  tickets       Ticket[]
+  invoices      Invoice[]
+  notesLog      ClientNote[]
+  chatRooms     ChatRoom[]
 
   @@index([companyId])
   @@index([status])
   @@index([health])
   @@index([ownerId])
+  @@index([ownerEmployeeId])
   @@index([email])
+  @@index([renewalDate])
   @@index([deletedAt])
   @@map("clients")
 }
 
 model Contact {
-  id        String      @id @default(cuid())
-  clientId  String
-  kind      ContactKind @default(PRIMARY)
-  firstName String?
-  lastName  String?
-  fullName  String?
-  email     String?
-  phone     String?
-  title     String?
-  isPrimary Boolean     @default(false)
-  notes     String?
-  metadata  Json?
-  createdAt DateTime    @default(now())
-  updatedAt DateTime    @updatedAt
-  deletedAt DateTime?
+  id          String      @id @default(cuid())
+  clientId    String
+  kind        ContactKind @default(PRIMARY)
+  firstName   String?
+  lastName    String?
+  fullName    String?
+  email       String?
+  phone       String?
+  title       String?
+  department  String?
+  linkedinUrl String?
+  avatarUrl   String?
+  timezone    String?
+  birthday    DateTime?
+  isPrimary   Boolean     @default(false)
+  notes       String?
+  metadata    Json?
+  createdAt   DateTime    @default(now())
+  updatedAt   DateTime    @updatedAt
+  deletedAt   DateTime?
 
   client Client @relation(fields: [clientId], references: [id], onDelete: Cascade)
 
   @@index([clientId])
   @@index([email])
+  @@index([isPrimary])
   @@index([deletedAt])
   @@map("contacts")
 }
@@ -598,6 +616,7 @@ model ClientNote {
 
 model Pipeline {
   id          String    @id @default(cuid())
+  companyId   String?
   name        String
   description String?
   isDefault   Boolean   @default(false)
@@ -605,76 +624,106 @@ model Pipeline {
   updatedAt   DateTime  @updatedAt
   deletedAt   DateTime?
 
-  stages Stage[]
-  deals  Deal[]
+  company Company? @relation(fields: [companyId], references: [id])
+  stages  Stage[]
+  deals   Deal[]
 
+  @@index([companyId])
   @@index([deletedAt])
   @@map("pipelines")
 }
 
 model Stage {
-  id          String    @id @default(cuid())
+  id          String   @id @default(cuid())
   pipelineId  String
   name        String
   description String?
-  position    Int
-  probability Int       @default(0)
-  isWon       Boolean   @default(false)
-  isLost      Boolean   @default(false)
+  position    Decimal  @default(0) @db.Decimal(19, 10)
+  probability Int      @default(0)
+  isWon       Boolean  @default(false)
+  isLost      Boolean  @default(false)
   color       String?
-  createdAt   DateTime  @default(now())
-  updatedAt   DateTime  @updatedAt
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
   deletedAt   DateTime?
 
   pipeline Pipeline @relation(fields: [pipelineId], references: [id], onDelete: Cascade)
   deals    Deal[]
 
-  @@unique([pipelineId, position])
+  @@unique([pipelineId, name])
   @@index([pipelineId])
   @@index([deletedAt])
   @@map("stages")
 }
 
 model Deal {
-  id            String     @id @default(cuid())
-  companyId     String
-  clientId      String?
-  pipelineId    String
-  stageId       String
-  ownerId       String?
-  createdById   String
-  title         String
-  description   String?
-  value         Decimal    @default(0) @db.Decimal(12, 2)
-  currency      String     @default("USD")
-  probability   Int        @default(0)
-  status        DealStatus @default(OPEN)
-  stageEnum     DealStage  @default(PROSPECT)
-  expectedClose DateTime?
-  closedAt      DateTime?
-  lostReason    String?
-  source        String?
-  tags          String[]
-  metadata      Json?
-  createdAt     DateTime   @default(now())
-  updatedAt     DateTime   @updatedAt
-  deletedAt     DateTime?
+  id                 String     @id @default(cuid())
+  companyId          String
+  clientId           String?
+  pipelineId         String
+  stageId            String
+  ownerId            String?
+  ownerEmployeeId    String?
+  createdById        String
+  title              String
+  description        String?
+  value              Decimal    @default(0) @db.Decimal(12, 2)
+  currency           String     @default("USD")
+  probability        Int        @default(0)
+  status             DealStatus @default(OPEN)
+  stageEnum          DealStage  @default(PROSPECT)
+  position           Decimal    @default(0) @db.Decimal(19, 10)
+  expectedClose      DateTime?
+  nextStepAt         DateTime?
+  nextStep           String?
+  closedAt           DateTime?
+  lostReason         String?
+  lostReasonCategory String?
+  lostCompetitor     String?
+  source             String?
+  tags               String[]
+  metadata           Json?
+  createdAt          DateTime   @default(now())
+  updatedAt          DateTime   @updatedAt
+  deletedAt          DateTime?
 
-  company   Company   @relation(fields: [companyId], references: [id])
-  client    Client?   @relation(fields: [clientId], references: [id])
-  pipeline  Pipeline  @relation(fields: [pipelineId], references: [id])
-  stage     Stage     @relation(fields: [stageId], references: [id])
-  owner     User?     @relation("DealOwner", fields: [ownerId], references: [id])
-  createdBy User      @relation("DealCreator", fields: [createdById], references: [id])
+  company       Company        @relation(fields: [companyId], references: [id])
+  client        Client?        @relation(fields: [clientId], references: [id])
+  pipeline      Pipeline       @relation(fields: [pipelineId], references: [id])
+  stage         Stage          @relation(fields: [stageId], references: [id])
+  owner         User?          @relation("DealOwner", fields: [ownerId], references: [id])
+  ownerEmployee Employee?      @relation("DealOwnerEmployee", fields: [ownerEmployeeId], references: [id])
+  createdBy     User           @relation("DealCreator", fields: [createdById], references: [id])
+  activities    DealActivity[]
 
   @@index([companyId])
   @@index([clientId])
   @@index([pipelineId])
   @@index([stageId])
   @@index([ownerId])
+  @@index([ownerEmployeeId])
   @@index([status])
   @@index([deletedAt])
+  @@index([pipelineId, stageId, position])
   @@map("deals")
+}
+
+model DealActivity {
+  id        String   @id @default(cuid())
+  dealId    String
+  actorId   String?
+  kind      String
+  fromValue String?
+  toValue   String?
+  metadata  Json?
+  createdAt DateTime @default(now())
+
+  deal Deal @relation(fields: [dealId], references: [id], onDelete: Cascade)
+
+  @@index([dealId])
+  @@index([actorId])
+  @@index([createdAt])
+  @@map("deal_activities")
 }
 
 // ============================================================================
