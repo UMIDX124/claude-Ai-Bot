@@ -71,7 +71,7 @@ export function DealsBoard({
       if (query) sp.set("q", query);
       router.replace(`/dashboard/deals?${sp.toString()}`, { scroll: false });
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+    //
   }, [pipelineId]);
 
   useEffect(() => {
@@ -81,7 +81,7 @@ export function DealsBoard({
       }
     }, 300);
     return () => clearTimeout(t);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+    //
   }, [query]);
 
   const onMove = useCallback(
