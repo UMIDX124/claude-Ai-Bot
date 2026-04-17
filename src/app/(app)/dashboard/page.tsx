@@ -9,7 +9,11 @@ import {
   TrendingUp,
   UserCog,
   ArrowRight,
+  AlertCircle,
+  Calendar,
+  Trophy,
 } from "lucide-react";
+import { endOfWeek, startOfWeek } from "date-fns";
 
 export const dynamic = "force-dynamic";
 
@@ -21,32 +25,138 @@ type Card = {
   href?: string;
 };
 
-async function loadKpis() {
-  const [clientCount, taskCount, ticketCount, dealCount, employeeCount, onLeaveCount] =
-    await Promise.all([
-      db.client.count({ where: { deletedAt: null } }).catch(() => 0),
-      db.task
-        .count({
-          where: { deletedAt: null, status: { in: ["TODO", "IN_PROGRESS", "REVIEW"] } },
+async function loadKpis(viewerUserId: string) {
+  const viewerEmployee = await db.employee.findUnique({
+    where: { userId: viewerUserId },
+    select: { id: true },
+  });
+  const now = new Date();
+  const weekStart = startOfWeek(now, { weekStartsOn: 1 });
+  const weekEnd = endOfWeek(now, { weekStartsOn: 1 });
+
+  const [
+    clientCount,
+    taskCount,
+    ticketCount,
+    dealCount,
+    employeeCount,
+    onLeaveCount,
+    myOpenTasks,
+    overdueTasks,
+    dueThisWeekTasks,
+    completedThisWeekTasks,
+  ] = await Promise.all([
+    db.client.count({ where: { deletedAt: null } }).catch(() => 0),
+    db.task
+      .count({
+        where: {
+          deletedAt: null,
+          parentId: null,
+          status: { in: ["TODO", "IN_PROGRESS", "IN_REVIEW"] },
+        },
+      })
+      .catch(() => 0),
+    db.ticket
+      .count({ where: { deletedAt: null, status: { notIn: ["CLOSED", "RESOLVED"] } } })
+      .catch(() => 0),
+    db.deal
+      .count({ where: { deletedAt: null, status: "OPEN" } })
+      .catch(() => 0),
+    db.employee.count({ where: { deletedAt: null } }).catch(() => 0),
+    db.employee
+      .count({ where: { deletedAt: null, status: "ON_LEAVE" } })
+      .catch(() => 0),
+    viewerEmployee
+      ? db.task.count({
+          where: {
+            deletedAt: null,
+            parentId: null,
+            assigneeEmployeeId: viewerEmployee.id,
+            status: { notIn: ["DONE", "CANCELLED"] },
+          },
         })
-        .catch(() => 0),
-      db.ticket
-        .count({ where: { deletedAt: null, status: { notIn: ["CLOSED", "RESOLVED"] } } })
-        .catch(() => 0),
-      db.deal
-        .count({ where: { deletedAt: null, status: "OPEN" } })
-        .catch(() => 0),
-      db.employee.count({ where: { deletedAt: null } }).catch(() => 0),
-      db.employee
-        .count({ where: { deletedAt: null, status: "ON_LEAVE" } })
-        .catch(() => 0),
-    ]);
-  return { clientCount, taskCount, ticketCount, dealCount, employeeCount, onLeaveCount };
+      : Promise.resolve(0),
+    viewerEmployee
+      ? db.task.count({
+          where: {
+            deletedAt: null,
+            parentId: null,
+            assigneeEmployeeId: viewerEmployee.id,
+            dueDate: { lt: now },
+            status: { notIn: ["DONE", "CANCELLED"] },
+          },
+        })
+      : Promise.resolve(0),
+    viewerEmployee
+      ? db.task.count({
+          where: {
+            deletedAt: null,
+            parentId: null,
+            assigneeEmployeeId: viewerEmployee.id,
+            dueDate: { gte: weekStart, lte: weekEnd },
+            status: { notIn: ["DONE", "CANCELLED"] },
+          },
+        })
+      : Promise.resolve(0),
+    viewerEmployee
+      ? db.task.count({
+          where: {
+            deletedAt: null,
+            parentId: null,
+            assigneeEmployeeId: viewerEmployee.id,
+            status: "DONE",
+            completedAt: { gte: weekStart, lte: weekEnd },
+          },
+        })
+      : Promise.resolve(0),
+  ]);
+  return {
+    clientCount,
+    taskCount,
+    ticketCount,
+    dealCount,
+    employeeCount,
+    onLeaveCount,
+    myOpenTasks,
+    overdueTasks,
+    dueThisWeekTasks,
+    completedThisWeekTasks,
+  };
 }
 
 export default async function DashboardPage() {
   const user = await requireUser();
-  const kpis = await loadKpis();
+  const kpis = await loadKpis(user.id);
+
+  const myCards: Card[] = [
+    {
+      label: "My open tasks",
+      value: String(kpis.myOpenTasks),
+      sub: "Assigned to me · not done",
+      icon: CheckSquare,
+      href: "/dashboard/my-tasks",
+    },
+    {
+      label: "Overdue",
+      value: String(kpis.overdueTasks),
+      sub: "Past due date, still open",
+      icon: AlertCircle,
+      href: "/dashboard/my-tasks",
+    },
+    {
+      label: "Due this week",
+      value: String(kpis.dueThisWeekTasks),
+      sub: "Mon–Sun assigned to me",
+      icon: Calendar,
+      href: "/dashboard/my-tasks",
+    },
+    {
+      label: "Completed this week",
+      value: String(kpis.completedThisWeekTasks),
+      sub: "Wins tracked in audit log",
+      icon: Trophy,
+    },
+  ];
 
   const cards: Card[] = [
     {
@@ -65,8 +175,9 @@ export default async function DashboardPage() {
     {
       label: "Open tasks",
       value: String(kpis.taskCount),
-      sub: "TODO / IN_PROGRESS / REVIEW",
+      sub: "TODO / IN_PROGRESS / IN_REVIEW",
       icon: CheckSquare,
+      href: "/dashboard/tasks",
     },
     {
       label: "Live tickets",
@@ -98,6 +209,46 @@ export default async function DashboardPage() {
           <span>Signed in as {user.role}</span>
         </div>
       </header>
+
+      <section className="space-y-3">
+        <h3 className="text-xs font-medium uppercase tracking-wider text-[#71717A]">
+          Your week
+        </h3>
+        <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-4">
+          {myCards.map(({ label, value, sub, icon: Icon, href }) => {
+            const body = (
+              <>
+                <div className="flex items-center justify-between">
+                  <span className="text-xs uppercase tracking-wider text-[#71717A]">
+                    {label}
+                  </span>
+                  <span className="w-8 h-8 rounded-md bg-[#F59E0B]/10 grid place-items-center text-[#F59E0B]">
+                    <Icon className="w-4 h-4" />
+                  </span>
+                </div>
+                <p className="mt-4 text-3xl font-semibold text-[#FAFAFA]">{value}</p>
+                <p className="mt-1 text-[11px] text-[#71717A]">{sub}</p>
+                {href ? (
+                  <span className="mt-3 inline-flex items-center gap-1 text-[11px] text-[#F59E0B] group-hover:translate-x-1 transition-transform">
+                    Open <ArrowRight className="w-3 h-3" />
+                  </span>
+                ) : null}
+              </>
+            );
+            const base =
+              "rounded-xl bg-[#111111] border border-[#1F1F1F] p-5 hover:border-[#F59E0B]/40 transition-colors";
+            return href ? (
+              <Link key={label} href={href} className={`${base} group block`}>
+                {body}
+              </Link>
+            ) : (
+              <div key={label} className={base}>
+                {body}
+              </div>
+            );
+          })}
+        </div>
+      </section>
 
       <section className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-5 gap-4">
         {cards.map(({ label, value, sub, icon: Icon, href }) => {

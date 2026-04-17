@@ -10,6 +10,8 @@ import {
   CalendarClock,
   ReceiptText,
   Trash2,
+  Folder,
+  Inbox,
 } from "lucide-react";
 import { ensureUserRecord } from "@/lib/auth";
 import { redirect } from "next/navigation";
@@ -31,13 +33,39 @@ export default async function AppShellLayout({
   const user = await ensureUserRecord();
   if (!user) redirect("/sign-in");
 
-  const employeeCount = await db.employee
-    .count({ where: { deletedAt: null } })
-    .catch(() => 0);
+  const viewerEmployee = await db.employee
+    .findUnique({ where: { userId: user.id }, select: { id: true } })
+    .catch(() => null);
+
+  const [employeeCount, myOpenTasks, projectCount] = await Promise.all([
+    db.employee.count({ where: { deletedAt: null } }).catch(() => 0),
+    viewerEmployee
+      ? db.task
+          .count({
+            where: {
+              deletedAt: null,
+              parentId: null,
+              assigneeEmployeeId: viewerEmployee.id,
+              status: { notIn: ["DONE", "CANCELLED"] },
+            },
+          })
+          .catch(() => 0)
+      : Promise.resolve(0),
+    db.project.count({ where: { deletedAt: null, status: "ACTIVE" } }).catch(() => 0),
+  ]);
 
   const NAV: NavItem[] = [
     { href: "/dashboard", label: "Dashboard", icon: LayoutDashboard },
-    { href: "/dashboard/tasks", label: "Tasks", icon: CheckSquare },
+    {
+      href: "/dashboard/tasks",
+      label: "Tasks",
+      icon: CheckSquare,
+      count: myOpenTasks || undefined,
+      subItems: [
+        { href: "/dashboard/my-tasks", label: "My tasks", icon: Inbox },
+        { href: "/dashboard/projects", label: "Projects", icon: Folder },
+      ],
+    },
     { href: "/dashboard/clients", label: "Clients", icon: Briefcase },
     { href: "/dashboard/deals", label: "Deals", icon: Users },
     { href: "/dashboard/tickets", label: "Tickets", icon: TicketPercent },
@@ -53,6 +81,8 @@ export default async function AppShellLayout({
     { href: "/dashboard/leaves", label: "Leaves", icon: CalendarClock },
     { href: "/dashboard/invoices", label: "Invoices", icon: ReceiptText },
   ];
+
+  void projectCount;
 
   return (
     <div className="min-h-screen flex bg-[#0D0D0D] text-[#FAFAFA]">

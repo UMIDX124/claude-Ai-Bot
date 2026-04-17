@@ -58,9 +58,17 @@ enum TaskStatus {
   BACKLOG
   TODO
   IN_PROGRESS
-  REVIEW
+  IN_REVIEW
+  BLOCKED
   DONE
   CANCELLED
+}
+
+enum ProjectStatus {
+  ACTIVE
+  ARCHIVED
+  COMPLETED
+  ON_HOLD
 }
 
 enum TaskPriority {
@@ -82,6 +90,15 @@ enum TaskActivityKind {
   REOPENED
   ATTACHMENT_ADDED
   SUBTASK_ADDED
+  SUBTASK_COMPLETED
+  LABEL_ADDED
+  LABEL_REMOVED
+  DEPENDENCY_ADDED
+  DEPENDENCY_REMOVED
+  MOVED
+  DELETED
+  RESTORED
+  ESTIMATE_CHANGED
 }
 
 enum DealStage {
@@ -371,6 +388,9 @@ model Company {
   invoices    Invoice[]
   campaigns   ColdEmailCampaign[]
   leads       Lead[]
+  projects    Project[]
+  tasks       Task[]
+  taskLabels  TaskLabel[]
 
   @@index([deletedAt])
   @@map("companies")
@@ -470,6 +490,9 @@ model Employee {
   headedDepts Department[] @relation("DepartmentHead")
   leaves      Leave[]
   balances    LeaveBalance[]
+  ledProjects Project[]    @relation("ProjectLead")
+  reportedTasks Task[]     @relation("EmployeeTaskReporter")
+  assignedTasks Task[]     @relation("EmployeeTaskAssignee")
 
   @@index([companyId])
   @@index([departmentId])
@@ -658,49 +681,147 @@ model Deal {
 // WORK MANAGEMENT (Slice 2)
 // ============================================================================
 
+model Project {
+  id              String        @id @default(cuid())
+  companyId       String
+  name            String
+  code            String
+  description     String?
+  status          ProjectStatus @default(ACTIVE)
+  leadEmployeeId  String?
+  color           String?
+  startDate       DateTime?
+  targetDate      DateTime?
+  createdAt       DateTime      @default(now())
+  updatedAt       DateTime      @updatedAt
+  deletedAt       DateTime?
+
+  company Company    @relation(fields: [companyId], references: [id])
+  lead    Employee?  @relation("ProjectLead", fields: [leadEmployeeId], references: [id])
+  tasks   Task[]
+  labels  TaskLabel[]
+
+  @@unique([companyId, code])
+  @@index([companyId])
+  @@index([leadEmployeeId])
+  @@index([status])
+  @@index([deletedAt])
+  @@map("projects")
+}
+
 model Task {
-  id            String       @id @default(cuid())
-  title         String
-  description   String?
-  status        TaskStatus   @default(TODO)
-  priority      TaskPriority @default(MEDIUM)
-  createdById   String
-  assignedToId  String?
-  parentId      String?
-  clientId      String?
-  dealId        String?
-  ticketId      String?
-  dueDate       DateTime?
-  startedAt     DateTime?
-  completedAt   DateTime?
-  position      Int          @default(0)
-  estimateHours Decimal?     @db.Decimal(8, 2)
-  actualHours   Decimal?     @db.Decimal(8, 2)
-  tags          String[]
-  metadata      Json?
-  createdAt     DateTime     @default(now())
-  updatedAt     DateTime     @updatedAt
-  deletedAt     DateTime?
+  id             String       @id @default(cuid())
+  title          String
+  description    String?      @db.Text
+  status         TaskStatus   @default(TODO)
+  priority       TaskPriority @default(MEDIUM)
+  companyId      String?
+  projectId      String?
+  createdById    String
+  assignedToId   String?
+  reporterEmployeeId String?
+  assigneeEmployeeId String?
+  parentId       String?
+  clientId       String?
+  dealId         String?
+  ticketId       String?
+  dueDate        DateTime?
+  startDate      DateTime?
+  startedAt      DateTime?
+  completedAt    DateTime?
+  position       Decimal      @default(0) @db.Decimal(19, 10)
+  estimatedHours Decimal?     @db.Decimal(8, 2)
+  actualHours    Decimal?     @db.Decimal(8, 2)
+  tags           String[]
+  metadata       Json?
+  createdAt      DateTime     @default(now())
+  updatedAt      DateTime     @updatedAt
+  deletedAt      DateTime?
 
-  createdBy   User           @relation("TaskCreator", fields: [createdById], references: [id])
-  assignedTo  User?          @relation("TaskAssignee", fields: [assignedToId], references: [id])
-  parent      Task?          @relation("TaskSubtasks", fields: [parentId], references: [id], onDelete: Cascade)
-  subtasks    Task[]         @relation("TaskSubtasks")
-  comments    TaskComment[]
-  activities  TaskActivity[]
-  attachments Attachment[]
+  company       Company?             @relation(fields: [companyId], references: [id])
+  project       Project?             @relation(fields: [projectId], references: [id])
+  createdBy     User                 @relation("TaskCreator", fields: [createdById], references: [id])
+  assignedTo    User?                @relation("TaskAssignee", fields: [assignedToId], references: [id])
+  reporter      Employee?            @relation("EmployeeTaskReporter", fields: [reporterEmployeeId], references: [id])
+  assignee      Employee?            @relation("EmployeeTaskAssignee", fields: [assigneeEmployeeId], references: [id])
+  parent        Task?                @relation("TaskSubtasks", fields: [parentId], references: [id], onDelete: Cascade)
+  subtasks      Task[]               @relation("TaskSubtasks")
+  comments      TaskComment[]
+  activities    TaskActivity[]
+  attachments   Attachment[]
+  labels        TaskLabelAssignment[]
+  dependsOn     TaskDependency[]     @relation("TaskDependent")
+  blocks        TaskDependency[]     @relation("TaskBlocker")
 
+  @@index([companyId])
+  @@index([projectId])
   @@index([status])
   @@index([priority])
   @@index([createdById])
   @@index([assignedToId])
+  @@index([reporterEmployeeId])
+  @@index([assigneeEmployeeId])
   @@index([parentId])
   @@index([clientId])
   @@index([dealId])
   @@index([ticketId])
   @@index([dueDate])
   @@index([deletedAt])
+  @@index([projectId, status, position])
   @@map("tasks")
+}
+
+model TaskLabel {
+  id          String   @id @default(cuid())
+  companyId   String
+  projectId   String?
+  name        String
+  color       String   @default("#F59E0B")
+  description String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  deletedAt   DateTime?
+
+  company     Company              @relation(fields: [companyId], references: [id])
+  project     Project?             @relation(fields: [projectId], references: [id])
+  assignments TaskLabelAssignment[]
+
+  @@unique([companyId, projectId, name])
+  @@index([companyId])
+  @@index([projectId])
+  @@index([deletedAt])
+  @@map("task_labels")
+}
+
+model TaskLabelAssignment {
+  id        String   @id @default(cuid())
+  taskId    String
+  labelId   String
+  createdAt DateTime @default(now())
+
+  task  Task      @relation(fields: [taskId], references: [id], onDelete: Cascade)
+  label TaskLabel @relation(fields: [labelId], references: [id], onDelete: Cascade)
+
+  @@unique([taskId, labelId])
+  @@index([taskId])
+  @@index([labelId])
+  @@map("task_label_assignments")
+}
+
+model TaskDependency {
+  id               String   @id @default(cuid())
+  taskId           String
+  dependsOnTaskId  String
+  createdById      String?
+  createdAt        DateTime @default(now())
+
+  task          Task @relation("TaskDependent", fields: [taskId], references: [id], onDelete: Cascade)
+  dependsOnTask Task @relation("TaskBlocker", fields: [dependsOnTaskId], references: [id], onDelete: Cascade)
+
+  @@unique([taskId, dependsOnTaskId])
+  @@index([taskId])
+  @@index([dependsOnTaskId])
+  @@map("task_dependencies")
 }
 
 model TaskComment {

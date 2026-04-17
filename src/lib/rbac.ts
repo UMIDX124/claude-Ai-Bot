@@ -11,44 +11,84 @@ export type Permission =
   | "employees.invite"
   | "employees.import"
   | "employees.export"
-  | "employees.bulk";
+  | "employees.bulk"
+  | "tasks.read"
+  | "tasks.create"
+  | "tasks.update"
+  | "tasks.update.any"
+  | "tasks.delete"
+  | "tasks.delete.any"
+  | "tasks.restore"
+  | "tasks.bulk"
+  | "tasks.comment"
+  | "projects.read"
+  | "projects.create"
+  | "projects.update"
+  | "projects.delete";
+
+const ALL_EMPLOYEE: Permission[] = [
+  "employees.read",
+  "employees.read.salary",
+  "employees.create",
+  "employees.update",
+  "employees.update.salary",
+  "employees.delete",
+  "employees.restore",
+  "employees.invite",
+  "employees.import",
+  "employees.export",
+  "employees.bulk",
+];
+
+const ALL_TASKS: Permission[] = [
+  "tasks.read",
+  "tasks.create",
+  "tasks.update",
+  "tasks.update.any",
+  "tasks.delete",
+  "tasks.delete.any",
+  "tasks.restore",
+  "tasks.bulk",
+  "tasks.comment",
+];
+
+const ALL_PROJECTS: Permission[] = [
+  "projects.read",
+  "projects.create",
+  "projects.update",
+  "projects.delete",
+];
 
 const ROLE_PERMISSIONS: Record<UserRole, Permission[]> = {
-  OWNER: [
-    "employees.read",
-    "employees.read.salary",
-    "employees.create",
-    "employees.update",
-    "employees.update.salary",
-    "employees.delete",
-    "employees.restore",
-    "employees.invite",
-    "employees.import",
-    "employees.export",
-    "employees.bulk",
-  ],
-  ADMIN: [
-    "employees.read",
-    "employees.read.salary",
-    "employees.create",
-    "employees.update",
-    "employees.update.salary",
-    "employees.delete",
-    "employees.restore",
-    "employees.invite",
-    "employees.import",
-    "employees.export",
-    "employees.bulk",
-  ],
+  OWNER: [...ALL_EMPLOYEE, ...ALL_TASKS, ...ALL_PROJECTS],
+  ADMIN: [...ALL_EMPLOYEE, ...ALL_TASKS, ...ALL_PROJECTS],
   MANAGER: [
     "employees.read",
     "employees.create",
     "employees.update",
     "employees.invite",
     "employees.export",
+    "tasks.read",
+    "tasks.create",
+    "tasks.update",
+    "tasks.update.any",
+    "tasks.delete",
+    "tasks.restore",
+    "tasks.bulk",
+    "tasks.comment",
+    "projects.read",
+    "projects.create",
+    "projects.update",
   ],
-  EMPLOYEE: ["employees.read"],
-  VIEWER: ["employees.read"],
+  EMPLOYEE: [
+    "employees.read",
+    "tasks.read",
+    "tasks.create",
+    "tasks.update",
+    "tasks.comment",
+    "projects.read",
+  ],
+  VIEWER: ["employees.read", "tasks.read", "projects.read"],
 };
 
 export function can(user: Pick<User, "role">, permission: Permission): boolean {
