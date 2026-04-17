@@ -134,3 +134,80 @@ vercel promote https://alpha-command-center-j3avo333e-umidx124s-projects.vercel.
 - `SELECT COUNT(*) FROM information_schema.tables WHERE table_schema='public'` → **38**.
 
 Good morning. I'm around for Slice 1 when you're ready.
+
+---
+
+## SLICE 0 VALIDATED (2026-04-17 14:55 UTC)
+
+**Production URL:** https://alpha-command-center.vercel.app
+**Latest deploy:** `alpha-command-center-8lfhqj5p8-umidx124s-projects.vercel.app`
+**Commit on prod:** `cb5fb5a` (`fix(auth+health): middleware redirect on unauth; health checks clerk+groq`)
+**Region:** iad1
+
+### Env sync to Vercel — 8/8 vars landed
+
+| Variable | Status |
+|---|---|
+| `NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY` | ✅ added (was missing) |
+| `CLERK_SECRET_KEY` | ✅ added (was missing) |
+| `CLERK_WEBHOOK_SECRET` | ✅ added (was missing) |
+| `DATABASE_URL` | ✅ replaced (was 9d old) |
+| `DIRECT_URL` | ✅ added (was missing) |
+| `UPSTASH_REDIS_REST_URL` | ✅ replaced (cleaned mangled value) |
+| `UPSTASH_REDIS_REST_TOKEN` | ✅ replaced |
+| `GROQ_API_KEY` | ✅ replaced |
+
+All pushed from `.env.local` via `pnpm dotenv -e .env.local -- sh -c 'printf %s $VAR' | vercel env add VAR production` — values never transited my Read tool, only a subshell pipe.
+
+### Final health check output
+
+```
+$ curl https://alpha-command-center.vercel.app/api/health
+HTTP 200 (1.7s)
+
+{
+  "ok": true,
+  "service": "alpha-command-center",
+  "commit": "cb5fb5a02b8cad98300cdec18f76745b590e277c",
+  "region": "iad1",
+  "uptimeMs": 240,
+  "checks": {
+    "db":    { "ok": true, "ms": 240 },
+    "clerk": { "ok": true },
+    "groq":  { "ok": true }
+  }
+}
+```
+
+### End-to-end verification
+
+| Surface | Expected | Actual |
+|---|---|---|
+| `GET /api/health` | 200 / `ok:true` | ✅ 200, all three checks green |
+| `GET /` (unauthed) | 307 → `/sign-in?redirect_url=...` | ✅ 307 with redirect_url preserved |
+| `GET /sign-in` | 200 (Clerk widget) | ✅ 200 |
+| DB tables | 38 | ✅ verified via `information_schema` |
+| Prisma migration | `20260417081751_init_slice_0` applied | ✅ `migrate status` up to date |
+
+### Git state
+
+- Remote `origin/main` fast-forwarded to `cb5fb5a` (push was non-force after `git reset --soft origin/main` + squash).
+- Detailed 9-commit history preserved at tag `slice-0-preflatten-20260417`.
+- Rollback tag `slice-0-start-20260417-113327` still points to pre-work state.
+
+### Late-stage fixes landed during this validation
+
+1. `a871332` — `prisma generate && next build` in build script + postinstall (pnpm v10 otherwise skips package build scripts).
+2. `f6b192a` — lazy Upstash client with env value sanitization (handled the mangled `UPSTASH_REDIS_REST_URL="..."` Vercel value).
+3. `03b229e` — squashed foundation commit on top of force-rewritten remote.
+4. `cb5fb5a` — middleware manual-redirect on unauth (Clerk v5 `auth.protect()` returns 404 by default, which looks broken to users).
+
+### Known residuals (tracked for Slice 1+)
+
+- Sentry installed, not wired. Zero crash telemetry until `sentry.*.config.ts` + `withSentryConfig`.
+- `/api/webhooks/clerk` handler not implemented — `ensureUserRecord` in `(app)/layout.tsx` covers the critical path lazily.
+- Dead radix deps still in `package.json` (7 packages whose wrappers were deleted).
+- No GitHub Actions CI.
+- `AIChat.tsx` floating panel deleted; rebuild against the hardened `/api/chat` with the stale-closure bug fixed.
+
+**Slice 0 is green and shippable.** Clear to proceed with Slice 1.
