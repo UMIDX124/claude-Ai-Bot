@@ -37,29 +37,38 @@ export default async function AppShellLayout({
     .findUnique({ where: { userId: user.id }, select: { id: true } })
     .catch(() => null);
 
-  const [employeeCount, myOpenTasks, projectCount, clientCount, openDealCount] =
-    await Promise.all([
-      db.employee.count({ where: { deletedAt: null } }).catch(() => 0),
-      viewerEmployee
-        ? db.task
-            .count({
-              where: {
-                deletedAt: null,
-                parentId: null,
-                assigneeEmployeeId: viewerEmployee.id,
-                status: { notIn: ["DONE", "CANCELLED"] },
-              },
-            })
-            .catch(() => 0)
-        : Promise.resolve(0),
-      db.project.count({ where: { deletedAt: null, status: "ACTIVE" } }).catch(() => 0),
-      db.client
-        .count({ where: { deletedAt: null, status: { in: ["ACTIVE", "PROSPECT", "PAUSED"] } } })
-        .catch(() => 0),
-      db.deal
-        .count({ where: { deletedAt: null, status: "OPEN" } })
-        .catch(() => 0),
-    ]);
+  const [
+    employeeCount,
+    myOpenTasks,
+    projectCount,
+    clientCount,
+    openDealCount,
+    openTicketCount,
+  ] = await Promise.all([
+    db.employee.count({ where: { deletedAt: null } }).catch(() => 0),
+    viewerEmployee
+      ? db.task
+          .count({
+            where: {
+              deletedAt: null,
+              parentId: null,
+              assigneeEmployeeId: viewerEmployee.id,
+              status: { notIn: ["DONE", "CANCELLED"] },
+            },
+          })
+          .catch(() => 0)
+      : Promise.resolve(0),
+    db.project.count({ where: { deletedAt: null, status: "ACTIVE" } }).catch(() => 0),
+    db.client
+      .count({ where: { deletedAt: null, status: { in: ["ACTIVE", "PROSPECT", "PAUSED"] } } })
+      .catch(() => 0),
+    db.deal
+      .count({ where: { deletedAt: null, status: "OPEN" } })
+      .catch(() => 0),
+    db.ticket
+      .count({ where: { deletedAt: null, status: { notIn: ["CLOSED", "RESOLVED"] } } })
+      .catch(() => 0),
+  ]);
 
   const NAV: NavItem[] = [
     { href: "/dashboard", label: "Dashboard", icon: LayoutDashboard },
@@ -85,7 +94,12 @@ export default async function AppShellLayout({
       icon: Users,
       count: openDealCount || undefined,
     },
-    { href: "/dashboard/tickets", label: "Tickets", icon: TicketPercent },
+    {
+      href: "/dashboard/tickets",
+      label: "Tickets",
+      icon: TicketPercent,
+      count: openTicketCount || undefined,
+    },
     {
       href: "/dashboard/employees",
       label: "Employees",

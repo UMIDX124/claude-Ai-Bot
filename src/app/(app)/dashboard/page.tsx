@@ -15,8 +15,11 @@ import {
   HeartCrack,
   DollarSign,
   Target,
+  Zap,
+  Timer,
 } from "lucide-react";
 import { endOfMonth, endOfWeek, startOfMonth, startOfWeek } from "date-fns";
+import { ticketRollups } from "@/lib/services/ticket.service";
 
 export const dynamic = "force-dynamic";
 
@@ -189,7 +192,10 @@ async function loadKpis(viewerUserId: string) {
 
 export default async function DashboardPage() {
   const user = await requireUser();
-  const kpis = await loadKpis(user.id);
+  const [kpis, tickets] = await Promise.all([
+    loadKpis(user.id),
+    ticketRollups(),
+  ]);
 
   const myCards: Card[] = [
     {
@@ -347,6 +353,45 @@ export default async function DashboardPage() {
 
       <section className="space-y-3">
         <h3 className="text-xs font-medium uppercase tracking-wider text-[#71717A]">
+          Support
+        </h3>
+        <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-4">
+          <SupportCard
+            label="Live tickets"
+            value={String(tickets.open)}
+            sub="Open, ack, in progress, waiting"
+            icon={TicketPercent}
+            href="/dashboard/tickets?includeClosed=false"
+          />
+          <SupportCard
+            label="SLA breaching"
+            value={String(tickets.breaching)}
+            sub="Past response or resolution SLA"
+            icon={Zap}
+            href="/dashboard/tickets?slaBreaching=true"
+            accent={tickets.breaching > 0 ? "danger" : undefined}
+          />
+          <SupportCard
+            label="Avg first response"
+            value={
+              tickets.avgResponseMinutes != null
+                ? formatMinutes(tickets.avgResponseMinutes)
+                : "—"
+            }
+            sub="Rolling 30d response median"
+            icon={Timer}
+          />
+          <SupportCard
+            label="Closed this week"
+            value={String(tickets.closedThisWeek)}
+            sub="Resolved + closed"
+            icon={Trophy}
+          />
+        </div>
+      </section>
+
+      <section className="space-y-3">
+        <h3 className="text-xs font-medium uppercase tracking-wider text-[#71717A]">
           Revenue · Pipeline · Risk
         </h3>
         <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-4">
@@ -422,8 +467,8 @@ export default async function DashboardPage() {
       <section className="rounded-xl border border-[#1F1F1F] bg-[#111111] p-6">
         <h3 className="text-sm font-medium text-[#FAFAFA]">What&apos;s live</h3>
         <p className="mt-2 text-sm text-[#A1A1AA]">
-          Slices 0–3 shipped: employees, task board with kanban, client 360, deal pipeline
-          with stage-move + probability rollups. Tickets, AI/Chat, and Billing ship next.
+          Slices 0–4 shipped: employees, task board with kanban, client 360, deal pipeline
+          with stage-move + probability rollups, ticket inbox with SLA timers. AI/Chat and Billing ship next.
         </p>
       </section>
     </div>
@@ -435,4 +480,65 @@ function formatCompact(n: number): string {
   if (n >= 1_000_000) return `${(n / 1_000_000).toFixed(2)}M`;
   if (n >= 10_000) return `${(n / 1_000).toFixed(1)}k`;
   return n.toLocaleString(undefined, { maximumFractionDigits: 0 });
+}
+
+function formatMinutes(mins: number): string {
+  if (mins < 60) return `${mins}m`;
+  const hours = Math.floor(mins / 60);
+  const remaining = mins % 60;
+  if (hours < 48) return remaining ? `${hours}h ${remaining}m` : `${hours}h`;
+  const days = Math.floor(hours / 24);
+  return `${days}d ${hours % 24}h`;
+}
+
+function SupportCard({
+  label,
+  value,
+  sub,
+  icon: Icon,
+  href,
+  accent,
+}: {
+  label: string;
+  value: string;
+  sub: string;
+  icon: React.ComponentType<{ className?: string }>;
+  href?: string;
+  accent?: "danger";
+}) {
+  const body = (
+    <>
+      <div className="flex items-center justify-between">
+        <span className="text-xs uppercase tracking-wider text-[#71717A]">
+          {label}
+        </span>
+        <span
+          className={`w-8 h-8 rounded-md grid place-items-center ${
+            accent === "danger"
+              ? "bg-red-500/10 text-red-400"
+              : "bg-[#F59E0B]/10 text-[#F59E0B]"
+          }`}
+        >
+          <Icon className="w-4 h-4" />
+        </span>
+      </div>
+      <p className="mt-4 text-3xl font-semibold text-[#FAFAFA]">{value}</p>
+      <p className="mt-1 text-[11px] text-[#71717A]">{sub}</p>
+      {href ? (
+        <span className="mt-3 inline-flex items-center gap-1 text-[11px] text-[#F59E0B] group-hover:translate-x-1 transition-transform">
+          Open <ArrowRight className="w-3 h-3" />
+        </span>
+      ) : null}
+    </>
+  );
+  const base = `rounded-xl bg-[#111111] border p-5 hover:border-[#F59E0B]/40 transition-colors ${
+    accent === "danger" ? "border-red-500/30" : "border-[#1F1F1F]"
+  }`;
+  return href ? (
+    <Link href={href} className={`${base} group block`}>
+      {body}
+    </Link>
+  ) : (
+    <div className={base}>{body}</div>
+  );
 }
