@@ -47,7 +47,14 @@ export type Permission =
   | "tickets.bulk"
   | "tickets.reply"
   | "tickets.reply.internal"
-  | "slas.manage";
+  | "slas.manage"
+  | "notifications.read.own"
+  | "notifications.send.any"
+  | "chat.read"
+  | "chat.send"
+  | "chat.rooms.create"
+  | "chat.rooms.manage"
+  | "ai.chat";
 
 const ALL_EMPLOYEE: Permission[] = [
   "employees.read",
@@ -112,6 +119,16 @@ const ALL_TICKETS: Permission[] = [
   "tickets.reply.internal",
 ];
 
+const ALL_COMMS: Permission[] = [
+  "notifications.read.own",
+  "notifications.send.any",
+  "chat.read",
+  "chat.send",
+  "chat.rooms.create",
+  "chat.rooms.manage",
+  "ai.chat",
+];
+
 const ROLE_PERMISSIONS: Record<UserRole, Permission[]> = {
   OWNER: [
     ...ALL_EMPLOYEE,
@@ -120,6 +137,7 @@ const ROLE_PERMISSIONS: Record<UserRole, Permission[]> = {
     ...ALL_CLIENTS,
     ...ALL_DEALS,
     ...ALL_TICKETS,
+    ...ALL_COMMS,
     "pipelines.manage",
     "slas.manage",
   ],
@@ -130,6 +148,7 @@ const ROLE_PERMISSIONS: Record<UserRole, Permission[]> = {
     ...ALL_CLIENTS,
     ...ALL_DEALS,
     ...ALL_TICKETS,
+    ...ALL_COMMS,
     "pipelines.manage",
     "slas.manage",
   ],
@@ -171,6 +190,11 @@ const ROLE_PERMISSIONS: Record<UserRole, Permission[]> = {
     "tickets.bulk",
     "tickets.reply",
     "tickets.reply.internal",
+    "notifications.read.own",
+    "chat.read",
+    "chat.send",
+    "chat.rooms.create",
+    "ai.chat",
   ],
   EMPLOYEE: [
     "employees.read",
@@ -190,6 +214,10 @@ const ROLE_PERMISSIONS: Record<UserRole, Permission[]> = {
     "tickets.create",
     "tickets.update",
     "tickets.reply",
+    "notifications.read.own",
+    "chat.read",
+    "chat.send",
+    "ai.chat",
   ],
   VIEWER: [
     "employees.read",
@@ -198,6 +226,8 @@ const ROLE_PERMISSIONS: Record<UserRole, Permission[]> = {
     "clients.read",
     "deals.read",
     "tickets.read",
+    "notifications.read.own",
+    "chat.read",
   ],
 };
 
