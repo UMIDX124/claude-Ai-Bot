@@ -12,7 +12,10 @@ import {
   Trash2,
   Folder,
   Inbox,
+  MessageSquare,
+  Sparkles,
 } from "lucide-react";
+import { NotificationBell } from "@/components/comms/notification-bell";
 import { ensureUserRecord } from "@/lib/auth";
 import { redirect } from "next/navigation";
 import { db } from "@/lib/db";
@@ -44,6 +47,7 @@ export default async function AppShellLayout({
     clientCount,
     openDealCount,
     openTicketCount,
+    unreadChatCount,
   ] = await Promise.all([
     db.employee.count({ where: { deletedAt: null } }).catch(() => 0),
     viewerEmployee
@@ -67,6 +71,9 @@ export default async function AppShellLayout({
       .catch(() => 0),
     db.ticket
       .count({ where: { deletedAt: null, status: { notIn: ["CLOSED", "RESOLVED"] } } })
+      .catch(() => 0),
+    db.chatRoom
+      .count({ where: { deletedAt: null, members: { some: { userId: user.id } } } })
       .catch(() => 0),
   ]);
 
@@ -109,6 +116,13 @@ export default async function AppShellLayout({
         { href: "/dashboard/employees/trash", label: "Terminated", icon: Trash2 },
       ],
     },
+    {
+      href: "/dashboard/chat",
+      label: "Chat",
+      icon: MessageSquare,
+      count: unreadChatCount || undefined,
+    },
+    { href: "/dashboard/ai", label: "Alpha AI", icon: Sparkles },
     { href: "/dashboard/leaves", label: "Leaves", icon: CalendarClock },
     { href: "/dashboard/invoices", label: "Invoices", icon: ReceiptText },
   ];
@@ -141,6 +155,7 @@ export default async function AppShellLayout({
             <h1 className="text-sm font-medium text-[#A1A1AA]">Alpha Command Center</h1>
           </div>
           <div className="flex items-center gap-3">
+            <NotificationBell />
             <UserButton
               appearance={{
                 variables: { colorPrimary: "#F59E0B" },
