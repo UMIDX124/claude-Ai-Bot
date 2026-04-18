@@ -354,6 +354,7 @@ model User {
   notificationPref NotificationPreference?
   chatMemberships  ChatMember[]
   chatMessages     Message[]
+  messageReads     MessageRead[]
   aiConversations  AIConversation[]
   auditLogs        AuditLog[]
   approvedLeaves   Leave[]             @relation("LeaveApprover")
@@ -1254,7 +1255,8 @@ model Notification {
   metadata  Json?
   createdAt DateTime            @default(now())
 
-  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  user   User                @relation(fields: [userId], references: [id], onDelete: Cascade)
+  events NotificationEvent[]
 
   @@index([userId])
   @@index([isRead])
@@ -1324,21 +1326,56 @@ model Message {
   roomId    String
   authorId  String
   kind      MessageKind @default(TEXT)
-  content   String
+  content   String      @db.Text
   isEdited  Boolean     @default(false)
+  replyToId String?
   metadata  Json?
   createdAt DateTime    @default(now())
   updatedAt DateTime    @updatedAt
   deletedAt DateTime?
 
-  room   ChatRoom @relation(fields: [roomId], references: [id], onDelete: Cascade)
-  author User     @relation(fields: [authorId], references: [id])
+  room     ChatRoom    @relation(fields: [roomId], references: [id], onDelete: Cascade)
+  author   User        @relation(fields: [authorId], references: [id])
+  replyTo  Message?    @relation("MessageReplies", fields: [replyToId], references: [id])
+  replies  Message[]   @relation("MessageReplies")
+  reads    MessageRead[]
 
   @@index([roomId])
   @@index([authorId])
+  @@index([replyToId])
   @@index([createdAt])
   @@index([deletedAt])
   @@map("messages")
+}
+
+model MessageRead {
+  id        String   @id @default(cuid())
+  messageId String
+  userId    String
+  readAt    DateTime @default(now())
+
+  message Message @relation(fields: [messageId], references: [id], onDelete: Cascade)
+  user    User    @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([messageId, userId])
+  @@index([messageId])
+  @@index([userId])
+  @@map("message_reads")
+}
+
+model NotificationEvent {
+  id             String   @id @default(cuid())
+  notificationId String
+  channel        String
+  status         String
+  error          String?
+  sentAt         DateTime @default(now())
+
+  notification Notification @relation(fields: [notificationId], references: [id], onDelete: Cascade)
+
+  @@index([notificationId])
+  @@index([status])
+  @@map("notification_events")
 }
 
 // ============================================================================
