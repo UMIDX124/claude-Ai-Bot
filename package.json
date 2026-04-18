@@ -17,6 +17,8 @@
     "db:studio": "dotenv -e .env.local -- prisma studio",
     "db:seed": "dotenv -e .env.local -- tsx prisma/seed.ts",
     "db:seed:slice3": "dotenv -e .env.local -- tsx prisma/seed.slice3.ts",
+    "db:seed:slice4": "dotenv -e .env.local -- tsx prisma/seed.slice4.ts",
+    "db:seed:slice5": "dotenv -e .env.local -- tsx prisma/seed.slice5.ts",
     "test": "dotenv -e .env.local -- vitest run",
     "test:watch": "dotenv -e .env.local -- vitest",
     "test:coverage": "dotenv -e .env.local -- vitest run --coverage",
